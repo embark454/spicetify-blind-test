@@ -1,0 +1,9 @@
+node_modules/
+sauvegardes/
+.env
+.env.*
+*.log
+*.zip
+config-xpui.ini
+.DS_Store
+Thumbs.db
