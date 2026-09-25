@@ -78,7 +78,7 @@ test('reads all playlist pages, filters local/unavailable tracks and de-duplicat
   assert.equal(e.timers.size, 0);
 });
 
-test('loads Titres likés via the installed LibraryAPI signature and paginates raw row counts', async () => {
+test('loads Liked Songs via the installed LibraryAPI signature and paginates raw row counts', async () => {
   const e = setup(); const offsets = [];
   const third = 'spotify:track:DDDDDDDDDDDDDDDDDDDDDD';
   const nativeTrack = { uri, name: track.title, artists: [{ name: 'Artiste' }],

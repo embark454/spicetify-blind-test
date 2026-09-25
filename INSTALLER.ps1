@@ -12,8 +12,8 @@ foreach ($taskFile in @('index.js','manifest.json','style.css','core.js','spotif
   Copy-Item -LiteralPath (Join-Path $taskSource $taskFile) -Destination (Join-Path $taskDestination $taskFile) -Force
 }
 & $taskSpicetify config custom_apps blind-test
-if ($LASTEXITCODE -ne 0) { throw 'Configuration Spicetify impossible. Sauvegarde : ' + $taskBackupRoot }
+if ($LASTEXITCODE -ne 0) { throw 'Could not configure Spicetify. Backup: ' + $taskBackupRoot }
 & $taskSpicetify apply
-if ($LASTEXITCODE -ne 0) { throw 'Application Spicetify impossible. Sauvegarde : ' + $taskBackupRoot }
-Write-Output 'Blind Test installe. Ouvre Blind Test dans la barre laterale Spotify.'
-Write-Output ('Sauvegarde : ' + $taskBackupRoot)
+if ($LASTEXITCODE -ne 0) { throw 'Could not apply Spicetify changes. Backup: ' + $taskBackupRoot }
+Write-Output 'Blind Test installed. Open Blind Test in the Spotify sidebar.'
+Write-Output ('Backup: ' + $taskBackupRoot)
