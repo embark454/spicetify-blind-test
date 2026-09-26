@@ -322,6 +322,66 @@
     return Math.floor(minimum + unitRandom(typeof random === "function" ? random : Math.random) * (maximum - minimum));
   }
 
+  function chooseNextStart(track, durationSeconds, previousStarts, random) {
+    var duration = track && track.durationMs;
+    if (typeof duration !== "number" || !Number.isFinite(duration) || duration <= 0) return 0;
+    var seconds = typeof durationSeconds === "number" || typeof durationSeconds === "string" ? Number(durationSeconds) : NaN;
+    if (!Number.isFinite(seconds) || seconds <= 0) seconds = 10;
+    var excerptMs = seconds * 1000;
+    // Use the same one-second end margin as chooseStart. If the excerpt cannot
+    // fit, zero is the only useful fallback; callers may shorten it for playback.
+    var maxStart = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - 1, Math.floor(duration - excerptMs - 1000)));
+    if (!maxStart) return 0;
+    var starts = Array.from(new Set((Array.isArray(previousStarts) ? previousStarts : []).filter(function (start) {
+      return typeof start === "number" && Number.isFinite(start) && start >= 0 && start <= maxStart;
+    }))).sort(function (left, right) { return left - right; });
+    var sample;
+    try { sample = unitRandom(typeof random === "function" ? random : Math.random); }
+    catch (_) { sample = 0; }
+    var windows = [];
+    function addWindow(lower, upper) {
+      var first = Math.max(0, Math.ceil(lower));
+      var last = Math.min(maxStart, Math.floor(upper));
+      if (first <= last) windows.push({ first: first, count: last - first + 1 });
+    }
+    if (!starts.length) addWindow(0, maxStart);
+    else {
+      addWindow(0, starts[0] - excerptMs);
+      for (var i = 1; i < starts.length; i++) addWindow(starts[i - 1] + excerptMs, starts[i] - excerptMs);
+      addWindow(starts[starts.length - 1] + excerptMs, maxStart);
+    }
+    // Weight each remaining window by its number of valid millisecond starts.
+    // Touching the boundary of an old excerpt is allowed; overlap is not.
+    var count = windows.reduce(function (sum, window) { return sum + window.count; }, 0);
+    if (count) {
+      var position = Math.floor(sample * count);
+      for (var j = 0; j < windows.length; j++) {
+        if (position < windows[j].count) return windows[j].first + position;
+        position -= windows[j].count;
+      }
+      return windows[windows.length - 1].first + windows[windows.length - 1].count - 1;
+    }
+    // When overlap is unavoidable, maximize the distance to the nearest old
+    // start. The optimum is an endpoint or an integer beside a gap's midpoint.
+    var bestDistance = -1, candidates = [], seen = new Set();
+    function consider(start, distance) {
+      if (seen.has(start)) return;
+      seen.add(start);
+      if (distance > bestDistance) { bestDistance = distance; candidates = [start]; }
+      else if (distance === bestDistance) candidates.push(start);
+    }
+    consider(0, starts[0]);
+    for (var k = 1; k < starts.length; k++) {
+      var left = starts[k - 1], right = starts[k];
+      var middle = left + (right - left) / 2;
+      [Math.floor(middle), Math.ceil(middle)].forEach(function (start) {
+        if (start >= left && start <= right) consider(start, Math.min(start - left, right - start));
+      });
+    }
+    consider(maxStart, maxStart - starts[starts.length - 1]);
+    return candidates[Math.floor(sample * candidates.length)];
+  }
+
   function escapeHTML(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (character) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
@@ -330,7 +390,7 @@
 
   return { parsePlaylist: parsePlaylist, normalize: normalize, matchAnswer: matchAnswer, titleVariants: titleVariants, artistVariants: artistVariants,
     buildSuggestionIndex: buildSuggestionIndex, suggestions: suggestions,
-    makeDeck: makeDeck, makeSmartDeck: makeSmartDeck, grade: grade, chooseStart: chooseStart, escapeHTML: escapeHTML,
+    makeDeck: makeDeck, makeSmartDeck: makeSmartDeck, grade: grade, chooseStart: chooseStart, chooseNextStart: chooseNextStart, escapeHTML: escapeHTML,
     STEPS: STEPS, STEP_POINTS: STEP_POINTS, createRound: createRound, submitRound: submitRound, advanceRound: advanceRound,
     revealRound: revealRound, correctRound: correctRound, totalRound: totalRound, maxPoints: maxPoints };
 });

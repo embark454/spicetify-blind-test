@@ -57,7 +57,28 @@ function setup() {
   }
   return { adapter, sp, player, state, calls, timers, listeners, audible, advance,
     setPosition: p => position = p, setVolume: v => { volume = v; },
-    schedule: (fn, ms) => setTimer(fn, ms, false) };
+    schedule: (fn, ms) => setTimer(fn, ms, false), now: () => now };
+}
+
+// Match the installed wrapper: its raw state is timestamped and getProgress()
+// extrapolates from that timestamp. A delayed event is not at the raw position.
+function timestampedPlayer(e) {
+  Object.assign(e.state, { timestamp: e.now(), positionAsOfTimestamp: 0 });
+  e.player.origin = { _state: e.state };
+  e.player.getProgress = () => {
+    const state = e.player.origin._state;
+    return state.positionAsOfTimestamp + (state.isPaused ? 0 : e.now() - state.timestamp);
+  };
+  const pause = e.player.pause;
+  e.player.pause = () => {
+    const position = e.player.getProgress();
+    pause();
+    Object.assign(e.player.origin._state, { isPaused: true, timestamp: e.now(), positionAsOfTimestamp: position });
+  };
+  return (positionAsOfTimestamp, timestamp, isBuffering = false) => {
+    Object.assign(e.player.origin._state, { positionAsOfTimestamp, timestamp, isBuffering });
+    e.setPosition(e.player.getProgress());
+  };
 }
 
 test('reads all playlist pages, filters local/unavailable tracks and de-duplicates', async () => {
@@ -433,6 +454,143 @@ test('random seek stays silent through delayed seek acknowledgement, so no intro
   assert.equal(e.audible.reduce((sum, piece) => sum + piece.durationMs, 0), 1000);
   assert.ok(diagnostic.startupMs >= 300);
   assert.equal(e.player.getVolume(), 0.42);
+});
+
+test('timestamped seek acknowledgements delivered 300 or 800 ms late still play a full second', async () => {
+  for (const delay of [300, 800]) {
+    const e = setup(); const publish = timestampedPlayer(e);
+    e.player.seek = requested => {
+      e.calls.seek.push(requested);
+      const appliedAt = e.now();
+      e.schedule(() => publish(requested, appliedAt), delay);
+    };
+    const playback = e.adapter.playExcerpt(track, { startMs: 60000, durationMs: 1000 });
+    await flush(); await e.advance(delay);
+    assert.equal(e.audible.length, 0, 'the intro stays muted until a seek-specific state arrives');
+    await e.advance(1100);
+    const diagnostic = await playback;
+    assert.equal(diagnostic.elapsedMs, 1000);
+    assert.ok(diagnostic.startupMs >= delay);
+    assert.equal(e.audible.reduce((sum, piece) => sum + piece.durationMs, 0), 1000);
+    assert.ok(e.audible.every(piece => piece.position >= 60000));
+    assert.equal(e.player.getVolume(), 0.42);
+    assert.equal(e.timers.size, 0);
+  }
+});
+
+test('a fresh raw state already past the target can acknowledge the correct seek trajectory', async () => {
+  const e = setup(); const publish = timestampedPlayer(e);
+  e.player.seek = requested => {
+    e.schedule(() => publish(requested + 500, 500), 800);
+  };
+  const playback = e.adapter.playExcerpt(track, { startMs: 30000, durationMs: 1000 });
+  await flush(); await e.advance(1900);
+  const diagnostic = await playback;
+  assert.equal(diagnostic.elapsedMs, 1000);
+  assert.ok(e.audible.every(piece => piece.position >= 30800));
+  assert.equal(e.audible.reduce((sum, piece) => sum + piece.durationMs, 0), 1000);
+});
+
+test('seek verification uses the same origin snapshot as getProgress when Player.data is stale', async () => {
+  const e = setup(); const publish = timestampedPlayer(e);
+  const play = e.player.playUri;
+  e.player.playUri = async requested => {
+    await play(requested);
+    e.player.origin._state = { ...e.state };
+  };
+  e.player.seek = requested => e.schedule(() => publish(requested, 0), 300);
+  const playback = e.adapter.playExcerpt(track, { startMs: 45000, durationMs: 1000 });
+  await flush(); await e.advance(1500); await playback;
+  assert.equal(e.player.data.positionAsOfTimestamp, 0, 'cached event data deliberately lags the origin');
+  assert.equal(e.audible.reduce((sum, piece) => sum + piece.durationMs, 0), 1000);
+  assert.ok(e.audible.every(piece => piece.position >= 45000));
+});
+
+test('an ignored nearby seek cannot be acknowledged by natural playback crossing its target', async () => {
+  const e = setup(); e.player.seek = () => {};
+  const playback = e.adapter.playExcerpt(track, { startMs: 500, durationMs: 1000 });
+  const rejected = assert.rejects(playback, /début de l’extrait/);
+  await flush(); await e.advance(8200); await rejected;
+  assert.equal(e.audible.length, 0);
+  assert.equal(e.player.getVolume(), 0.42);
+});
+
+test('an unchanged previous-round snapshot at the target is not a new seek acknowledgement', async () => {
+  const e = setup(); const publish = timestampedPlayer(e);
+  e.state.item.uri = uri;
+  e.state.isPaused = false;
+  publish(60000, 0);
+  e.player.seek = () => {};
+  const playback = e.adapter.playExcerpt(track, { startMs: 60000, durationMs: 1000 });
+  const rejected = assert.rejects(playback, /début de l’extrait/);
+  await flush(); await e.advance(8200); await rejected;
+  assert.equal(e.audible.length, 0);
+  assert.equal(e.player.getVolume(), 0.42);
+});
+
+test('an intro already at the requested start can play without a new state at a nonzero clock', async () => {
+  const e = setup(); const publish = timestampedPlayer(e);
+  await e.advance(100);
+  publish(0, 90);
+  e.player.seek = () => {};
+  const playback = e.adapter.playExcerpt(track, { startMs: 0, durationMs: 1000 });
+  await flush(); await e.advance(1100);
+  const diagnostic = await playback;
+  assert.equal(diagnostic.elapsedMs, 1000);
+  assert.equal(e.audible.reduce((sum, piece) => sum + piece.durationMs, 0), 1000);
+  assert.equal(e.player.getVolume(), 0.42);
+  assert.equal(e.state.isPaused, true);
+  assert.equal(e.timers.size, 0);
+});
+
+test('a changed but older snapshot cannot acknowledge a seek while the actual audio stays at the intro', async () => {
+  // Cover both a regressing timestamp and a timestamp newer than the previous
+  // snapshot but still older than this seek request.
+  for (const [requestAt, oldTimestamp] of [[0, -100], [100, 50]]) {
+    const e = setup(); const publish = timestampedPlayer(e);
+    await e.advance(requestAt);
+    e.player.seek = () => {
+      e.schedule(() => {
+        publish(60000, oldTimestamp);
+        // The stale state describes a previous round. The real output still
+        // advances from the intro because the new seek was never applied.
+        e.setPosition(300);
+      }, 300);
+    };
+    const playback = e.adapter.playExcerpt(track, { startMs: 60000, durationMs: 1000 });
+    const rejected = assert.rejects(playback, /début de l’extrait/);
+    await flush(); await e.advance(8200); await rejected;
+    assert.equal(e.audible.length, 0);
+    assert.equal(e.player.getVolume(), 0.42);
+    assert.equal(e.state.isPaused, true);
+    assert.equal(e.timers.size, 0);
+  }
+});
+
+test('fractional millisecond input is rounded before the fraction-aware Spicetify seek wrapper', async () => {
+  const e = setup();
+  e.player.seek = value => {
+    e.calls.seek.push(value);
+    const position = !Number.isInteger(value) && value >= 0 && value <= 1 ? value * track.durationMs : value;
+    e.setPosition(position);
+  };
+  const playback = e.adapter.playExcerpt(track, { startMs: 0.6, durationMs: 1000 });
+  await flush(); await e.advance(1100); await playback;
+  assert.deepEqual(e.calls.seek, [1]);
+  assert.ok(e.audible.every(piece => piece.position < 1500), 'one millisecond must not mean 100% of the track');
+});
+
+test('cancelling before a delayed timestamped seek update keeps playback paused and restores volume', async () => {
+  const e = setup(); const publish = timestampedPlayer(e);
+  e.player.seek = requested => e.schedule(() => publish(requested, 0), 300);
+  const playback = e.adapter.playExcerpt(track, { startMs: 30000, durationMs: 1000 });
+  const cancelled = assert.rejects(playback, { name: 'AbortError' });
+  await flush(); await e.advance(100); e.adapter.stop(); await cancelled;
+  await e.advance(400);
+  assert.equal(e.audible.length, 0);
+  assert.equal(e.state.isPaused, true);
+  assert.equal(e.player.getVolume(), 0.42);
+  assert.equal(e.timers.size, 0);
 });
 
 test('seek errors of half a second fail silently instead of consuming a one-second excerpt', async () => {

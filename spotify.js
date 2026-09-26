@@ -267,6 +267,10 @@
         const startedAt = Date.now();
         let phase = 'preparing';
         let seekAt = 0;
+        let seekFromPosition = NaN;
+        let seekTimestamp = NaN;
+        let seekRawPosition = NaN;
+        const seekTargetMs = Math.round(startMs);
         let volumeRequestAt = 0;
         let interval;
         let done = false;
@@ -439,7 +443,10 @@
               else if (now - volumeRequestAt > 2000) finish(error('Impossible de couper le son pendant le chargement. Vérifie le volume Spotify puis réessaie.'));
               return;
             }
-            const state = player.data;
+            // getProgress() reads origin._state in the installed wrapper. Use
+            // that same snapshot when available instead of mixing it with the
+            // separately updated Player.data event cache.
+            const state = player.origin?._state || player.data;
             const item = state?.item;
             const isAd = item?.type === 'ad' || item?.uri?.startsWith('spotify:ad:') || item?.metadata?.is_advertisement === 'true';
             if (isAd) { finish(error('Une publicité interrompt l’extrait. Attends sa fin puis réessaie.')); return; }
@@ -456,6 +463,11 @@
               return;
             }
             if (phase === 'waiting') {
+              const ready = typeof player.isPlaying === 'function' ? player.isPlaying() : state?.isPaused === false;
+              if (!ready || state?.isBuffering) {
+                if (now - startedAt > 15000) finish(error('Le morceau ne démarre pas. Vérifie le lecteur Spotify puis réessaie.'));
+                return;
+              }
               actualDuration = Number(player.getDuration?.() || track.durationMs);
               if (Number.isFinite(actualDuration) && startMs + durationMs > actualDuration - 150) {
                 finish(error('L’extrait dépasse la fin du morceau. Relance la manche avec un extrait plus court.'));
@@ -463,7 +475,12 @@
               }
               phase = 'seeking';
               seekAt = now;
-              player.seek(Math.round(startMs));
+              seekFromPosition = Number(player.getProgress());
+              seekTimestamp = Number(state?.timestamp);
+              seekRawPosition = Number(state?.positionAsOfTimestamp);
+              // Spicetify interprets non-integer values in [0,1] as fractions.
+              // Always send an integer millisecond target, including 0 and 1.
+              player.seek(seekTargetMs);
               return;
             }
             const position = Number(player.getProgress());
@@ -471,11 +488,34 @@
             const playing = typeof player.isPlaying === 'function' ? player.isPlaying() : state?.isPaused === false;
             if (phase === 'seeking') {
               if (now - seekAt > 8000) { finish(error('Spotify n’a pas accepté le début de l’extrait. Réessaie.')); return; }
-              // getProgress() extrapolates state.timestamp; when available the
-              // raw position must also acknowledge the requested seek.
+              // A state delivered 300 ms after a successful seek can contain
+              // raw=target but getProgress()=target+300. Compare a time corridor
+              // rather than requiring both positions to equal the seek target.
+              const sinceSeek = Math.max(0, now - seekAt);
+              const onTargetTrajectory = position >= seekTargetMs - 150 && position <= seekTargetMs + sinceSeek + 150;
+              const distance = Math.abs(seekTargetMs - seekFromPosition);
+              const oldTrajectory = seekFromPosition + sinceSeek;
+              const movedFromOldTrajectory = Number.isFinite(seekFromPosition) &&
+                Math.abs(position - oldTrajectory) > Math.min(150, distance / 2);
+              // Widening the time corridor alone could accept an ignored seek
+              // when natural playback reaches a nearby target. Require a jump
+              // from the old trajectory, unless already at the requested point.
+              const wasAtTarget = distance <= 150;
+              // A no-op seek at the intro may not emit a new native state.
+              // This exception is deliberately restricted to the track start.
+              const alreadyAtIntro = wasAtTarget && seekTargetMs <= 150;
+              const timestamp = Number(state?.timestamp);
               const rawPosition = Number(state?.positionAsOfTimestamp);
-              if (Math.abs(position - startMs) > 150 || !playing || state?.isBuffering ||
-                  (Number.isFinite(rawPosition) && Math.abs(rawPosition - startMs) > 150)) return;
+              const hasTimestampedSnapshot = Number.isFinite(seekTimestamp) && Number.isFinite(seekRawPosition);
+              // The wrapper compares this timestamp directly to Date.now().
+              // A changed but older snapshot is not a seek acknowledgement:
+              // its extrapolated position may merely resemble the new target.
+              const postSeekSnapshot = !hasTimestampedSnapshot || alreadyAtIntro || (Number.isFinite(timestamp) &&
+                timestamp >= seekAt && timestamp >= seekTimestamp);
+              const freshSnapshot = !hasTimestampedSnapshot || timestamp !== seekTimestamp ||
+                rawPosition !== seekRawPosition || alreadyAtIntro;
+              if (!playing || state?.isBuffering || !onTargetTrajectory || !postSeekSnapshot || !freshSnapshot ||
+                  (!wasAtTarget && !movedFromOldTrajectory)) return;
               phase = 'unmuting';
               volumeRequestAt = now;
               requestVolume(originalVolume);

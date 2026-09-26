@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+- Fixed false seek timeouts when Spotify confirms a random excerpt after playback has already advanced.
+- Random Challenge now chooses another passage of the same song at every step, keeping the 1, 2, 4, 8, and 16-second progression and earned points.
+- Added another-passage control to Random Practice without changing its selected duration.
+- Kept free replays and failed playback retries at the current position, avoiding repeated passages on new hints when possible.
+- Separated new random-passage records from the earlier rules while preserving existing scores.
+
 ## 0.3.0
 
 - First public Windows beta, with Marketplace metadata and a preview image.

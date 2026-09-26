@@ -90,3 +90,25 @@ test('album records differ from the playlist with the same ID and survive mixed 
   assert.notEqual(recordKey({...opts,playlistUris:[album]}),recordKey({...opts,playlistUris:[]}));
   assert.notEqual(recordKey({...opts,playlistUris:[uri,album]}),recordKey(opts));
 });
+
+test('new random-passage rules isolate records while retaining legacy random and intro scores', () => {
+  const persisted = storage();
+  for (const mode of ['challenge', 'training']) {
+    for (const difficulty of ['hard', 'easy']) {
+      const rules = { ...opts, passage: 'random', mode, difficulty };
+      const legacyParts = ['v2', [uri], mode, 'random', mode === 'training' ? 10 : [1,2,4,8,16], 5];
+      if (difficulty === 'easy') legacyParts.push('easy');
+      const legacyKey = JSON.stringify(legacyParts);
+      const oldResult = mode === 'training' ? { ...result, score: 5, maxScore: 10 } : result;
+      const session = create(persisted);
+      session.saveResult(legacyKey, oldResult);
+      assert.notEqual(recordKey(rules), legacyKey);
+      assert.equal(session.getRecord(recordKey(rules)), null);
+      session.saveResult(recordKey(rules), { ...oldResult, score: oldResult.score + 1 });
+      const reloaded = create(persisted);
+      assert.equal(reloaded.getRecord(legacyKey).score, oldResult.score);
+      assert.equal(reloaded.getRecord(recordKey(rules)).score, oldResult.score + 1);
+    }
+  }
+  assert.equal(recordKey(opts), '["v2",["spotify:playlist:0000000000000000000001"],"challenge","intro",[1,2,4,8,16],5]');
+});

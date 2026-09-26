@@ -18,9 +18,12 @@
   function recordKey({ playlistUris = [], mode, passage, seconds, rounds, difficulty }) {
     const uris = [...new Set(playlistUris.filter(uri => uriPattern.test(uri)))].sort();
     const parts = ['v2', uris, mode === 'training' ? 'training' : 'challenge', passage === 'random' ? 'random' : 'intro', mode === 'training' ? Number(seconds) : [1,2,4,8,16], Number(rounds)];
-    // Existing v2 records used hard rules. Keep their key byte-for-byte intact;
-    // only easy mode adds a discriminator so old personal bests remain valid.
+    // Existing v2 records used hard rules. Preserve the original intro keys;
+    // easy mode adds its own discriminator so the difficulties stay separate.
     if (difficulty === 'easy') parts.push('easy');
+    // New random passages provide different hints than the original fixed-start
+    // random mode. Retain old scores without comparing incompatible rules.
+    if (passage === 'random') parts.push('random-passages-v1');
     return JSON.stringify(parts);
   }
   function validRecord(value) {

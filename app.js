@@ -1,4 +1,4 @@
-/* Blind Test 0.3 — uses Spotify's React, no external runtime or account. */
+/* Blind Test 0.3.1 — uses Spotify's React, no external runtime or account. */
 function BlindTestAnswerInput({ fieldName, label, placeholder, value, onChange, disabled, difficulty, index }) {
   const R = Spicetify.React, h = R.createElement;
   const [focused, setFocused] = R.useState(false);
@@ -108,7 +108,7 @@ function BlindTestApp() {
     const starts = deck.map(t => preservedStarts?.get(t.uri) ?? core.chooseStart(t, maxSeconds, rules.passage));
     const difficulty = rules.difficulty === 'easy' ? 'easy' : 'hard';
     const suggestionIndex = difficulty === 'easy' ? core.buildSuggestionIndex((replay ? catalogRef.current : catalog)?.tracks || catalog.tracks) : null;
-    const next = { id:`${Date.now()}-${Math.random()}`,deck,starts,index:0,round:core.createRound(),history:[],mode:rules.mode,passage:rules.passage,seconds:rules.seconds,difficulty,suggestionIndex,
+    const next = { id:`${Date.now()}-${Math.random()}`,deck,starts,passageStarts:starts.map(start=>[start]),index:0,round:core.createRound(),history:[],mode:rules.mode,passage:rules.passage,seconds:rules.seconds,difficulty,suggestionIndex,
       playlistUris:catalog.uris,source:catalog.name,replay,recordKey:store.recordKey({playlistUris:catalog.uris,...rules,rounds:deck.length}) };
     commit(next); clearRoundUI(); setRecord(null); setScreen('game');
     setNotice(replay ? 'Révision des erreurs · entraînement hors record.' : deck.length < rules.rounds ? `${deck.length} manche${deck.length>1?'s':''} disponible${deck.length>1?'s':''} dans cette sélection.` : '');
@@ -149,13 +149,23 @@ function BlindTestApp() {
     finally {if(alive.current && ticket===operation.current){busy.current=false;setPlaying(false);}}
   }
 
+  function withNewPassage(current) {
+    const starts=[...current.starts],passageStarts=[...current.passageStarts];
+    const previous=passageStarts[current.index];
+    // Reserve the longest tier so every subsequent excerpt fits safely.
+    starts[current.index]=core.chooseNextStart(current.deck[current.index],current.mode==='challenge'?16:current.seconds,previous);
+    passageStarts[current.index]=[...previous,starts[current.index]];
+    return {...current,starts,passageStarts};
+  }
+
   function applyRound(nextRound) {
     const current=gameRef.current;
     if(!current || current.round===nextRound)return;
     stop();
     const history=[...current.history];
     if(nextRound.revealed)history[current.index]={track:current.deck[current.index],startMs:current.starts[current.index],round:nextRound};
-    commit({...current,round:nextRound,history});
+    const next=current.passage==='random' && nextRound.step!==current.round.step && !nextRound.revealed?withNewPassage(current):current;
+    commit({...next,round:nextRound,history});
     if(nextRound.step!==current.round.step){markHeard(-1);setElapsed(0);}
     setError('');
   }
@@ -166,9 +176,14 @@ function BlindTestApp() {
     const updated=core.submitRound(current.deck[current.index],current.round,answers,{mode:current.mode});
     const gained=core.totalRound(updated)-core.totalRound(current.round);
     applyRound(updated);
-    setFeedback(updated.revealed?'':gained>0?`+${gained} point${gained>1?'s':''} acquis. Continue pour la réponse restante.`:current.mode==='challenge'?`Pas encore. Passe à l’extrait de ${core.STEPS[updated.step]} secondes.`:'Pas encore. Tu peux réécouter ou révéler la réponse.');
+    setFeedback(updated.revealed?'':gained>0?`+${gained} point${gained>1?'s':''} acquis. Continue pour la réponse restante.`:current.mode==='challenge'?`Pas encore. ${current.passage==='random'?'Un autre passage t’attend':'Passe à l’extrait'} : ${core.STEPS[updated.step]} secondes.`:'Pas encore. Tu peux réécouter ou révéler la réponse.');
   }
   function extend() { const current=gameRef.current;if(!current || current.round.revealed)return;applyRound(core.advanceRound(current.round));setFeedback(''); }
+  function anotherPassage() {
+    const current=gameRef.current;
+    if(!current || current.round.revealed || current.passage!=='random' || current.mode!=='training')return;
+    stop();commit(withNewPassage(current));markHeard(-1);setElapsed(0);setFeedback('');setError('');
+  }
   function reveal() { const current=gameRef.current;if(!current || current.round.revealed)return;applyRound(core.revealRound(current.round));setFeedback(''); }
   function correct(field) { const current=gameRef.current;if(!current)return;applyRound(core.correctRound(current.round,field,{mode:current.mode})); }
   function finish() {
@@ -196,7 +211,7 @@ function BlindTestApp() {
 
   const btn=(label,onClick,className='bt-button bt-secondary',extra={})=>h('button',{type:'button',className,onClick,...extra},label);
   const field=(label,element)=>h('label',{className:'bt-field'},h('span',null,label),element);
-  const header=h('header',{className:'bt-header'},h('div',{className:'bt-brand'},h('span',{className:'bt-logo','aria-hidden':true},'◉'),'BLIND TEST'),h('span',{className:'bt-badge'},preview?'APERÇU · AUDIO SIMULÉ':'VERSION TEST · 0.3'));
+  const header=h('header',{className:'bt-header'},h('div',{className:'bt-brand'},h('span',{className:'bt-logo','aria-hidden':true},'◉'),'BLIND TEST'),h('span',{className:'bt-badge'},preview?'APERÇU · AUDIO SIMULÉ':'VERSION TEST · 0.3.1'));
   const errorView=error?h('div',{className:'bt-error',role:'alert'},error):null;
   const stageProps={ref:stageRef,className:'bt-root bt-stage','aria-label':'Partie de Blind Test',onCancel:event=>{event.preventDefault();leave();}};
 
@@ -219,7 +234,7 @@ function BlindTestApp() {
       h('aside',{className:'bt-card bt-rules'},h('p',{className:'bt-eyebrow'},settings.mode==='challenge'?'LE DÉFI':'L’ENTRAÎNEMENT'),h('h2',null,settings.mode==='challenge'?'Une seconde.':'Écoute. Devine.',h('br'),settings.mode==='challenge'?'Peut-être assez.':'À ton rythme.'),
         settings.mode==='challenge'?h('div',{className:'bt-preview-steps'},core.STEPS.map((n,i)=>h('div',{key:n},h('strong',null,`${n} s`),h('span',null,`${core.STEP_POINTS[i]} pts`)))):null,
         h('ol',null,h('li',null,h('strong',null,'Deux réponses, deux chances.'),h('span',null,'Trouve le titre et l’artiste séparément. Les points acquis restent à toi.')),
-          h('li',null,h('strong',null,settings.mode==='challenge'?'Un peu plus de musique ?':'Prends ton temps.'),h('span',null,settings.mode==='challenge'?'Allonge le même passage : les points restants diminuent. Réécouter le palier actuel est gratuit.':'Chaque réponse vaut 1 point. Tu peux réécouter et corriger une réponse rejetée.')),
+          h('li',null,h('strong',null,settings.passage==='random'?'Un autre passage ?':settings.mode==='challenge'?'Un peu plus de musique ?':'Prends ton temps.'),h('span',null,settings.mode==='challenge'?(settings.passage==='random'?'À chaque palier, écoute un autre passage de la même chanson : 1, 2, 4, 8 puis 16 secondes. Les points restants diminuent. Réécouter le passage actuel est gratuit.':'Allonge le même passage : les points restants diminuent. Réécouter le palier actuel est gratuit.'):(settings.passage==='random'?'Change de passage au hasard, à durée constante, ou réécoute le passage actuel. Chaque réponse vaut 1 point.':'Chaque réponse vaut 1 point. Tu peux réécouter et corriger une réponse rejetée.'))),
           h('li',null,h('strong',null,settings.difficulty==='easy'?'Un coup de pouce.':'À toi de retrouver les mots.'),h('span',null,settings.difficulty==='easy'?'Dès la première lettre, des titres et artistes de ta sélection sont proposés. Choisis puis valide ta réponse.':'Saisis le titre et l’artiste sans suggestions. Les petites fautes restent tolérées.')),
           h('li',null,h('strong',null,'Ton prochain record t’attend.'),h('span',null,'Les records Facile et Difficile sont séparés, pour les mêmes sources et règles.'))),
         h('p',{className:'bt-footnote'},'Ferme les notifications et les autres écrans Spotify pour éviter les indices.'))),
@@ -256,8 +271,9 @@ function BlindTestApp() {
       round.revealed && track.coverUrl?h('img',{className:'bt-cover',src:track.coverUrl,alt:`Pochette de ${track.title}`,referrerPolicy:'no-referrer',onError:e=>{e.currentTarget.style.display='none';}}):h('div',{className:'bt-wave','aria-hidden':true},[20,34,49,27,63,80,45,96,56,75,36,62,87,43,70,35,52,24,40].map((n,i)=>h('span',{key:i,style:{height:`${n}px`,opacity:playing||round.revealed?1:.45}}))),
       h('div',{className:'bt-time'},h('span',null,`${Math.min(elapsed,durationMs/1000).toFixed(1)} s`),h('span',null,`${Number((durationMs/1000).toFixed(1))} s`)),h('progress',{className:'bt-progress',max:1,value:Math.min(1,elapsed/(durationMs/1000)),'aria-label':'Progression de l’extrait'}),
       !round.revealed?btn(playing?'Arrêter l’extrait':heardStep===round.step?`↻ Réécouter ${seconds} s`:`▶ Écouter ${seconds} s`,playing?stop:listen,'bt-button bt-primary bt-wide',{'data-autofocus':true}):null,
-      !round.revealed && game.mode==='challenge' && round.step<4?btn(`Un peu plus : ${core.STEPS[round.step+1]} secondes →`,extend,'bt-button bt-secondary bt-wide bt-extend'):null,
-      h('p',{className:'bt-hint'},playing && elapsed===0?'Préparation de l’extrait…':game.mode==='challenge'?'Même passage à chaque palier. Réécoute gratuite.':'Réécoute libre · 1 point par réponse.')),
+      !round.revealed && game.mode==='challenge' && round.step<4?btn(`${game.passage==='random'?'Autre passage':'Un peu plus'} : ${core.STEPS[round.step+1]} secondes →`,extend,'bt-button bt-secondary bt-wide bt-extend'):null,
+      !round.revealed && game.mode==='training' && game.passage==='random'?btn('Autre passage au hasard →',anotherPassage,'bt-button bt-secondary bt-wide bt-extend'):null,
+      h('p',{className:'bt-hint'},playing && elapsed===0?'Préparation de l’extrait…':game.mode==='challenge'?(game.passage==='random'?'Un autre passage à chaque palier, avec moins de points à gagner. Réécoute du passage actuel gratuite.':'Même passage à chaque palier. Réécoute gratuite.'):(game.passage==='random'?'Nouveau passage à durée constante · 1 point par réponse.':'Réécoute libre · 1 point par réponse.'))),
     round.revealed?h('section',{className:'bt-card bt-answer-card','aria-live':'polite'},h('p',{className:'bt-eyebrow'},round.title.found && round.artist.found?'LE DUO EST TROUVÉ':'LA RÉPONSE'),revealedField('title','Titre',track.title),revealedField('artist','Artiste',track.artists.join(', ')),
       round.attempts.length?h('p',{className:'bt-hint'},`Ta dernière réponse : ${round.attempts[round.attempts.length-1].title || '—'} / ${round.attempts[round.attempts.length-1].artist || '—'}`):null,
       btn(game.index+1===game.deck.length?'Voir mon score →':'Morceau suivant →',finish,'bt-button bt-primary bt-wide',{'data-autofocus':true})):
