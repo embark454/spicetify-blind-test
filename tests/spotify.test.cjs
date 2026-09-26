@@ -118,7 +118,7 @@ test('loads Liked Songs via the installed LibraryAPI signature and paginates raw
   e.sp.Platform.PlaylistAPI.getContents = async () => assert.fail('liked tracks must not use PlaylistAPI');
   e.sp.Platform.PlaylistAPI.getMetadata = async () => assert.fail('liked tracks do not have playlist metadata');
   const result = await e.adapter.loadPlaylist('spotify:collection:tracks');
-  assert.equal(result.name, 'Titres likés');
+  assert.equal(result.name, 'Liked Songs');
   assert.deepEqual(Array.from(result.tracks, t => t.uri), [uri, third]);
   assert.equal(result.tracks[0].durationMs, 180000);
   assert.equal(result.tracks[0].artists[0], 'Artiste');
@@ -136,7 +136,7 @@ test('liked-track pagination continues past a page whose rows were all filtered 
       : { items: [track], limit: 1, totalLength: 3 };
   } };
   const result = await e.adapter.loadPlaylist('https://open.spotify.com/collection/tracks?si=discarded');
-  assert.equal(result.name, 'Titres likés');
+  assert.equal(result.name, 'Liked Songs');
   assert.equal(result.tracks.length, 1);
   assert.equal(result.skipped, 2);
   assert.deepEqual(offsets, [0, 2]);
@@ -145,7 +145,7 @@ test('liked-track pagination continues past a page whose rows were all filtered 
 test('liked-track API unavailability reports a clear error without a guessed network fallback', async () => {
   const e = setup(); let requests = 0;
   e.sp.CosmosAsync = { get: async () => { requests++; return {}; } };
-  await assert.rejects(e.adapter.loadPlaylist('spotify:collection:tracks'), /API des Titres likés est indisponible/);
+  await assert.rejects(e.adapter.loadPlaylist('spotify:collection:tracks'), /Liked Songs API is unavailable/);
   assert.equal(requests, 0);
 });
 
@@ -167,9 +167,9 @@ test('cancelling liked-track loading does not request later pages', async () => 
 test('empty liked tracks are reported by name and invalid collection hosts are rejected', async () => {
   const e = setup(); let requests = 0;
   e.sp.Platform.LibraryAPI = { getTracks: async () => { requests++; return { items: [], limit: 0, totalLength: 0 }; } };
-  await assert.rejects(e.adapter.loadPlaylist('https://example.com/collection/tracks'), /lien Spotify/);
+  await assert.rejects(e.adapter.loadPlaylist('https://example.com/collection/tracks'), /Spotify link/);
   assert.equal(requests, 0);
-  await assert.rejects(e.adapter.loadPlaylist('spotify:collection:tracks'), /Titres likés ne contiennent aucun morceau lisible/);
+  await assert.rejects(e.adapter.loadPlaylist('spotify:collection:tracks'), /Liked Songs have no playable tracks/);
   assert.equal(requests, 1);
 });
 
@@ -225,7 +225,7 @@ test('official album URLs and older tracks response work with the installed quer
   const result = await e.adapter.loadPlaylist('https://open.spotify.com/intl-fr/album/EEEEEEEEEEEEEEEEEEEEEE/?si=discarded');
   assert.equal(result.tracks.length, 1);
   assert.equal(result.name, 'Album');
-  await assert.rejects(e.adapter.loadPlaylist('https://example.com/album/EEEEEEEEEEEEEEEEEEEEEE'), /lien Spotify/);
+  await assert.rejects(e.adapter.loadPlaylist('https://example.com/album/EEEEEEEEEEEEEEEEEEEEEE'), /Spotify link/);
 });
 
 test('album cancellation prevents later page requests', async () => {
@@ -246,13 +246,13 @@ test('album cancellation prevents later page requests', async () => {
 test('album errors and unavailable albums are actionable without exposing server payloads', async () => {
   const e = setup();
   e.sp.GraphQL = { Definitions: { getAlbum: {} }, Request: async () => ({ errors: [{ message: 'private server payload' }] }) };
-  await assert.rejects(e.adapter.loadPlaylist(albumUri), /^Error: Impossible de charger cet album\./);
+  await assert.rejects(e.adapter.loadPlaylist(albumUri), /^Error: Could not load this album\./);
   e.sp.GraphQL.Request = async () => ({ data: { albumUnion: { __typename: 'NotFound' } } });
-  await assert.rejects(e.adapter.loadPlaylist(albumUri), /album est indisponible/);
+  await assert.rejects(e.adapter.loadPlaylist(albumUri), /album is unavailable/);
   e.sp.GraphQL.Request = async () => ({ data: { albumUnion: { playability: { playable: false } } } });
-  await assert.rejects(e.adapter.loadPlaylist(albumUri), /album est indisponible/);
+  await assert.rejects(e.adapter.loadPlaylist(albumUri), /album is unavailable/);
   e.sp.GraphQL.Request = async () => ({ data: { albumUnion: {} } });
-  await assert.rejects(e.adapter.loadPlaylist(albumUri), /format de cet album/);
+  await assert.rejects(e.adapter.loadPlaylist(albumUri), /album format/);
 });
 
 test('album pagination refuses repeated or prematurely empty pages instead of returning partial contents', async () => {
@@ -261,23 +261,23 @@ test('album pagination refuses repeated or prematurely empty pages instead of re
     calls++;
     return { data: { albumUnion: { tracksV2: { totalCount: 3, items: [{ track }] } } } };
   } };
-  await assert.rejects(e.adapter.loadPlaylist(albumUri), /suite de cet album/);
+  await assert.rejects(e.adapter.loadPlaylist(albumUri), /next page of this album/);
   assert.equal(calls, 2);
   e.sp.GraphQL.Request = async () => ({ data: { albumUnion: { tracksV2: { totalCount: 3, items: [] } } } });
-  await assert.rejects(e.adapter.loadPlaylist(albumUri), /tous les morceaux de cet album/);
+  await assert.rejects(e.adapter.loadPlaylist(albumUri), /all tracks from this album/);
 });
 
 test('missing album definitions fail without attempting an invented API or network endpoint', async () => {
   const e = setup();
   e.sp.Platform.AlbumAPI = { getTracks: () => assert.fail('unverified AlbumAPI must not be called') };
   e.sp.CosmosAsync = { get: () => assert.fail('album request must not build a network endpoint') };
-  await assert.rejects(e.adapter.loadPlaylist(albumUri), /API des albums Spicetify est indisponible/);
+  await assert.rejects(e.adapter.loadPlaylist(albumUri), /Spicetify album API is unavailable/);
 });
 
 test('rejects non-Spotify input before issuing a request', async () => {
   const e = setup(); let requests = 0;
   e.sp.Platform.PlaylistAPI.getContents = async () => { requests++; return {}; };
-  await assert.rejects(e.adapter.loadPlaylist('https://example.com/playlist/CCCCCCCCCCCCCCCCCCCCCC'), /lien Spotify/);
+  await assert.rejects(e.adapter.loadPlaylist('https://example.com/playlist/CCCCCCCCCCCCCCCCCCCCCC'), /Spotify link/);
   assert.equal(requests, 0);
 });
 
@@ -327,7 +327,7 @@ test('rejects malformed playlist responses without exposing upstream errors', as
   e.sp.Platform.PlaylistAPI.getContents = async () => ({});
   await assert.rejects(e.adapter.loadPlaylist(playlist), /format/);
   e.sp.Platform.PlaylistAPI.getContents = async () => { throw new Error('private upstream payload'); };
-  await assert.rejects(e.adapter.loadPlaylist(playlist), /^Error: Impossible de lire/);
+  await assert.rejects(e.adapter.loadPlaylist(playlist), /^Error: Could not load/);
 });
 
 test('waits for actual seek and progress, pauses at the endpoint and removes listeners', async () => {
@@ -402,7 +402,7 @@ test('disposal silences late native completion', async () => {
 
 test('unexpected track changes stop and produce a visible error', async () => {
   const e = setup(); const playback = e.adapter.playExcerpt(track);
-  const rejected = assert.rejects(playback, /morceau a changé/);
+  const rejected = assert.rejects(playback, /track changed/);
   await flush(); await e.advance(200); e.state.item.uri = other; await e.advance(100);
   await rejected; assert.equal(e.state.isPaused, true);
 });
@@ -410,7 +410,7 @@ test('unexpected track changes stop and produce a visible error', async () => {
 test('a stuck seek fails within a bounded interval', async () => {
   const e = setup(); e.player.seek = () => {};
   const playback = e.adapter.playExcerpt(track, { startMs: 60000 });
-  const rejected = assert.rejects(playback, /début de l’extrait/);
+  const rejected = assert.rejects(playback, /excerpt start/);
   await flush(); await e.advance(8200); await rejected;
   assert.equal(e.timers.size, 0);
   assert.equal(e.player.getVolume(), 0.42);
@@ -509,7 +509,7 @@ test('seek verification uses the same origin snapshot as getProgress when Player
 test('an ignored nearby seek cannot be acknowledged by natural playback crossing its target', async () => {
   const e = setup(); e.player.seek = () => {};
   const playback = e.adapter.playExcerpt(track, { startMs: 500, durationMs: 1000 });
-  const rejected = assert.rejects(playback, /début de l’extrait/);
+  const rejected = assert.rejects(playback, /excerpt start/);
   await flush(); await e.advance(8200); await rejected;
   assert.equal(e.audible.length, 0);
   assert.equal(e.player.getVolume(), 0.42);
@@ -522,7 +522,7 @@ test('an unchanged previous-round snapshot at the target is not a new seek ackno
   publish(60000, 0);
   e.player.seek = () => {};
   const playback = e.adapter.playExcerpt(track, { startMs: 60000, durationMs: 1000 });
-  const rejected = assert.rejects(playback, /début de l’extrait/);
+  const rejected = assert.rejects(playback, /excerpt start/);
   await flush(); await e.advance(8200); await rejected;
   assert.equal(e.audible.length, 0);
   assert.equal(e.player.getVolume(), 0.42);
@@ -558,7 +558,7 @@ test('a changed but older snapshot cannot acknowledge a seek while the actual au
       }, 300);
     };
     const playback = e.adapter.playExcerpt(track, { startMs: 60000, durationMs: 1000 });
-    const rejected = assert.rejects(playback, /début de l’extrait/);
+    const rejected = assert.rejects(playback, /excerpt start/);
     await flush(); await e.advance(8200); await rejected;
     assert.equal(e.audible.length, 0);
     assert.equal(e.player.getVolume(), 0.42);
@@ -597,7 +597,7 @@ test('seek errors of half a second fail silently instead of consuming a one-seco
   const e = setup();
   e.player.seek = requested => e.setPosition(requested + 500);
   const playback = e.adapter.playExcerpt(track, { startMs: 60000, durationMs: 1000 });
-  const rejected = assert.rejects(playback, /début de l’extrait/);
+  const rejected = assert.rejects(playback, /excerpt start/);
   await flush(); await e.advance(8200); await rejected;
   assert.equal(e.audible.length, 0);
   assert.equal(e.player.getVolume(), 0.42);
@@ -660,9 +660,9 @@ test('a hung native command gives explicit recovery guidance and does not repeat
   const e = setup(); let nativeCalls = 0;
   e.player.playUri = () => { nativeCalls++; return new Promise(() => {}); };
   const playback = e.adapter.playExcerpt(track, { durationMs: 1000 });
-  const failed = assert.rejects(playback, /sans confirmation/);
+  const failed = assert.rejects(playback, /has not been confirmed/);
   await flush(); await e.advance(15200); await failed;
-  await assert.rejects(e.adapter.playExcerpt(track, { durationMs: 1000 }), /reste bloquée/);
+  await assert.rejects(e.adapter.playExcerpt(track, { durationMs: 1000 }), /is stuck/);
   assert.equal(nativeCalls, 1);
   assert.equal(e.player.getVolume(), 0.42);
   assert.equal(e.timers.size, 0);
@@ -686,7 +686,7 @@ test('repeated cancel while awaiting volume restoration cannot corrupt the next 
 test('does not issue a play request if muting cannot be confirmed', async () => {
   const e = setup(); e.player.setVolume = () => {};
   const playback = e.adapter.playExcerpt(track, { durationMs: 1000 });
-  const rejected = assert.rejects(playback, /sans confirmation/);
+  const rejected = assert.rejects(playback, /has not been confirmed/);
   await flush(); await e.advance(5200); await rejected;
   assert.equal(e.calls.play.length, 0);
   assert.equal(e.player.getVolume(), 0.42);

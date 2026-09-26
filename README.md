@@ -1,12 +1,12 @@
-# Blind Test — 0.3.1
+# Blind Test — 0.3.2
 
 A solo music quiz built into Spotify with Spicetify. Pick playlists, albums, or Liked Songs and identify each track and artist from short excerpts.
 
 Experimental custom app, developed with Spicetify 2.45.1 on Windows. This repository contains the game and its tests. It is not an official Spotify application.
 
-The game interface is currently in French. Repository documentation and release information are maintained in English.
+The game interface, context menus, and messages are in English. Original song titles, artist names, and playlist names are preserved.
 
-[Download 0.3.1 — Windows beta](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.1) · [Report a bug](https://github.com/embark454/spicetify-blind-test/issues) · [Changelog](CHANGELOG.md)
+[Download 0.3.2 — Windows beta](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.2) · [Report a bug](https://github.com/embark454/spicetify-blind-test/issues) · [Changelog](CHANGELOG.md)
 
 ![Blind Test setup screen with difficulty levels, playlists, albums, and Liked Songs.](assets/preview.png)
 
@@ -70,7 +70,7 @@ Local files, podcasts, and unusable tracks are excluded. Each source supports up
 
 Spicetify must already be installed and working with the Spotify desktop client.
 
-1. Open the [download page](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.1) and download **`blind-test-v0.3.1-windows.zip`** under **Assets**.
+1. Open the [download page](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.2) and download **`blind-test-v0.3.2-windows.zip`** under **Assets**.
 2. Extract the archive and open its **`blind-test`** folder.
 3. On Windows, open PowerShell in that folder and run:
 

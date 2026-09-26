@@ -63,7 +63,7 @@ function setup(rules = {}) {
   async function start() { render(); await find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); render(); }
   function answer(field, value) { find(node => node.props.fieldName === field).props.onChange(value); render(); }
   function submit() {
-    assert.equal(button('Valider ma réponse').props.disabled, false);
+    assert.equal(button('Submit answer').props.disabled, false);
     find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); render();
   }
   return { calls, start, click, button, answer, submit, text: () => text(tree), failNext: () => { failNext = true; } };
@@ -71,59 +71,59 @@ function setup(rules = {}) {
 
 test('random challenge moves to new passages on hints and wrong answers, retaining earned points', async () => {
   const app = setup(); await app.start();
-  await app.click('▶ Écouter 1 s');
+  await app.click('▶ Listen 1 s');
   app.answer('artist', 'Daft Punk'); app.submit();
-  assert.match(app.text(), /100 points acquis/);
-  await app.click('↻ Réécouter 1 s');
+  assert.match(app.text(), /100 points earned/);
+  await app.click('↻ Replay 1 s');
   assert.deepEqual(app.calls[1], app.calls[0], 'free replay must retain the same position');
-  await app.click('Autre passage : 2 secondes →');
+  await app.click('Another passage: 2 seconds →');
   app.answer('title', 'wrong answer');
-  assert.equal(app.button('Valider ma réponse').props.disabled, true, 'a previous listen cannot unlock the new passage');
-  await app.click('▶ Écouter 2 s');
+  assert.equal(app.button('Submit answer').props.disabled, true, 'a previous listen cannot unlock the new passage');
+  await app.click('▶ Listen 2 s');
   assert.notEqual(app.calls[2].startMs, app.calls[0].startMs);
   app.submit();
-  await app.click('▶ Écouter 4 s');
+  await app.click('▶ Listen 4 s');
   assert.notEqual(app.calls[3].startMs, app.calls[2].startMs);
-  await app.click('Autre passage : 8 secondes →'); await app.click('▶ Écouter 8 s');
-  await app.click('Autre passage : 16 secondes →'); await app.click('▶ Écouter 16 s');
+  await app.click('Another passage: 8 seconds →'); await app.click('▶ Listen 8 s');
+  await app.click('Another passage: 16 seconds →'); await app.click('▶ Listen 16 s');
   assert.deepEqual(app.calls.map(call => call.durationMs), [1000,1000,2000,4000,8000,16000]);
   assert.equal(new Set(app.calls.map(call => call.uri)).size, 1, 'all hints must stay on the same song');
   const starts = app.calls.filter((_, i) => i !== 1).map(call => call.startMs);
   for (let i = 0; i < starts.length; i++) for (let j = i + 1; j < starts.length; j++) assert.ok(Math.abs(starts[i] - starts[j]) >= 16000);
   app.answer('title', 'Get Lucky'); app.submit();
-  assert.match(app.text(), /120 points acquis/);
+  assert.match(app.text(), /120 points earned/);
 });
 
 test('intro challenge extends the same position and preserves free replay', async () => {
   const app = setup({ passage: 'intro' }); await app.start();
-  await app.click('▶ Écouter 1 s');
-  await app.click('Un peu plus : 2 secondes →'); await app.click('▶ Écouter 2 s');
-  await app.click('↻ Réécouter 2 s');
+  await app.click('▶ Listen 1 s');
+  await app.click('More music: 2 seconds →'); await app.click('▶ Listen 2 s');
+  await app.click('↻ Replay 2 s');
   assert.deepEqual(app.calls.map(call => [call.startMs, call.durationMs]), [[0,1000],[0,2000],[0,2000]]);
 });
 
 test('random practice changes only the passage and requires a new listen before submission', async () => {
   const app = setup({ mode: 'training', seconds: 10 }); await app.start();
-  await app.click('▶ Écouter 10 s');
+  await app.click('▶ Listen 10 s');
   app.answer('artist', 'Daft Punk'); app.submit();
   app.answer('title', 'Get Lucky');
-  await app.click('Autre passage au hasard →');
-  assert.equal(app.button('Valider ma réponse').props.disabled, true);
-  assert.match(app.text(), /1 point acquis/);
-  await app.click('▶ Écouter 10 s');
+  await app.click('Another random passage →');
+  assert.equal(app.button('Submit answer').props.disabled, true);
+  assert.match(app.text(), /1 point earned/);
+  await app.click('▶ Listen 10 s');
   assert.notEqual(app.calls[1].startMs, app.calls[0].startMs);
-  await app.click('↻ Réécouter 10 s');
+  await app.click('↻ Replay 10 s');
   assert.deepEqual(app.calls[2], app.calls[1]);
   app.submit();
-  assert.match(app.text(), /2 points acquis/);
+  assert.match(app.text(), /2 points earned/);
 });
 
 test('retrying a failed random excerpt does not reroll it or unlock unanswered hints', async () => {
   const app = setup(); await app.start();
-  app.failNext(); await app.click('▶ Écouter 1 s');
+  app.failNext(); await app.click('▶ Listen 1 s');
   app.answer('title', 'Get Lucky');
-  assert.equal(app.button('Valider ma réponse').props.disabled, true);
-  await app.click('▶ Écouter 1 s');
+  assert.equal(app.button('Submit answer').props.disabled, true);
+  await app.click('▶ Listen 1 s');
   assert.deepEqual(app.calls[1], app.calls[0]);
-  assert.equal(app.button('Valider ma réponse').props.disabled, false);
+  assert.equal(app.button('Submit answer').props.disabled, false);
 });

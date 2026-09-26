@@ -43,14 +43,14 @@
       return;
     }
     try {
-      const item = Item ? new Item('Jouer au blind test', launch, canLaunch, 'play')
-        : new ItemV2({ children: 'Jouer au blind test', leadingIcon: 'play',
+      const item = Item ? new Item('Play Blind Test', launch, canLaunch, 'play')
+        : new ItemV2({ children: 'Play Blind Test', leadingIcon: 'play',
           onClick: context => launch(fromProps(context?.props)), shouldAdd: props => canLaunch(fromProps(props)) });
       item.register();
       state.item = item;
       state.error = null;
     } catch (cause) {
-      state.error = cause?.message || 'Menu indisponible.';
+      state.error = cause?.message || 'Menu unavailable.';
       retry();
     }
   }

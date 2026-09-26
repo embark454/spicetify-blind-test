@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+- Translated all game screens, rules, results, context menus, accessibility labels, and error messages into English.
+- Updated suggestion sorting and game language attributes for English while preserving original song and artist names.
+- Preserved settings, records, scoring, and playback behavior.
+
 ## 0.3.1
 
 - Fixed false seek timeouts when Spotify confirms a random excerpt after playback has already advanced.

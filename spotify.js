@@ -13,7 +13,7 @@
   // Cleanup observes late mute commands for up to 5 s and native playback for
   // 15 s. After those limits it requests the original volume and reports a
   // recovery error: the wrapper cannot cancel an indefinitely delayed command.
-  const abortError = () => Object.assign(new Error('Lecture annulée.'), { name: 'AbortError' });
+  const abortError = () => Object.assign(new Error('Playback cancelled.'), { name: 'AbortError' });
   const error = message => new Error(message);
   const trackUri = /^spotify:track:[A-Za-z0-9]{22}$/;
 
@@ -31,7 +31,7 @@
         if (match) return 'spotify:' + match[1].toLowerCase() + ':' + match[2];
       }
     } catch (_) { /* A validation message below is more useful than URL errors. */ }
-    throw error('Colle le lien Spotify ou l’URI d’une playlist ou d’un album.');
+    throw error('Paste the Spotify link or URI of a playlist or album.');
   }
 
   function normalizeTrack(item) {
@@ -88,7 +88,7 @@
       if (!player || typeof player.playUri !== 'function' || typeof player.seek !== 'function' ||
           typeof player.getProgress !== 'function' || typeof player.pause !== 'function' ||
           typeof player.getVolume !== 'function' || typeof player.setVolume !== 'function') {
-        throw error('Le lecteur Spicetify n’est pas prêt. Réouvre Blind Test dans Spotify.');
+        throw error('The Spicetify player is not ready. Reopen Blind Test in Spotify.');
       }
     }
 
@@ -97,7 +97,7 @@
       const metadataQuery = graph?.Definitions?.getAlbum;
       const tracksQuery = graph?.Definitions?.queryAlbumTracks;
       if (typeof graph?.Request !== 'function' || (!metadataQuery && !tracksQuery)) {
-        throw error('L’API des albums Spicetify est indisponible. Recharge Spotify puis réessaie.');
+        throw error('The Spicetify album API is unavailable. Reload Spotify and try again.');
       }
       const tracks = [];
       const seen = new Set();
@@ -119,27 +119,27 @@
         let response;
         try {
           response = await withTimeout(() => graph.Request(definition, variables), 15000,
-            'Spotify met trop de temps à charger cet album. Réessaie.');
+            'Spotify is taking too long to load this album. Try again.');
         } catch (cause) {
           assertCurrent();
-          if (/trop de temps/.test(cause?.message || '')) throw cause;
-          throw error('Impossible de charger cet album. Vérifie son accès dans Spotify puis réessaie.');
+          if (/taking too long/.test(cause?.message || '')) throw cause;
+          throw error('Could not load this album. Check that you can open it in Spotify, then try again.');
         }
         assertCurrent();
-        if (response?.errors?.length) throw error('Impossible de charger cet album. Vérifie son accès dans Spotify puis réessaie.');
+        if (response?.errors?.length) throw error('Could not load this album. Check that you can open it in Spotify, then try again.');
         const album = response?.data?.albumUnion;
         if (!album || (album.__typename && album.__typename !== 'Album') || album.playability?.playable === false) {
-          throw error('Cet album est indisponible pour le blind test. Essaie un autre album.');
+          throw error('This album is unavailable for Blind Test. Try another album.');
         }
         const page = album.tracksV2 ?? album.tracks;
-        if (!Array.isArray(page?.items)) throw error('Le format de cet album n’est pas reconnu par cette version de test.');
+        if (!Array.isArray(page?.items)) throw error('This beta does not recognize the album format.');
         if (typeof album.name === 'string' && album.name.trim()) name = album.name;
         if (Array.isArray(album.coverArt?.sources)) coverSources = album.coverArt.sources;
         const declaredTotal = Number(page.totalCount);
         if (Number.isFinite(declaredTotal) && declaredTotal >= 0) total = declaredTotal;
         const signature = page.items.map(row => row?.uid || row?.track?.uri || '').join('|');
         if (offset && page.items.length && signature === previousPage) {
-          throw error('Spotify n’a pas chargé la suite de cet album. Réessaie.');
+          throw error('Spotify did not load the next page of this album. Try again.');
         }
         previousPage = signature;
         for (const row of page.items) {
@@ -151,15 +151,15 @@
         }
         offset += page.items.length;
         if (!page.items.length) {
-          if (total !== null && offset < total) throw error('Spotify n’a pas chargé tous les morceaux de cet album. Réessaie.');
+          if (total !== null && offset < total) throw error('Spotify did not load all tracks from this album. Try again.');
           break;
         }
         if ((total !== null && offset >= total) || (total === null && page.items.length < limit)) break;
       }
       if (offset >= 10000 && (total === null || offset < total)) {
-        throw error('Cette version de test accepte les albums de 10 000 titres maximum.');
+        throw error('This beta supports albums with up to 10,000 tracks.');
       }
-      if (!tracks.length) throw error('Cet album ne contient aucun morceau lisible pour le blind test.');
+      if (!tracks.length) throw error('This album has no playable tracks for Blind Test.');
       return { name, tracks, skipped };
     }
 
@@ -175,14 +175,14 @@
       const cosmos = sp?.CosmosAsync;
       const hasInternal = isLikedTracks ? typeof internal?.getTracks === 'function' : typeof internal?.getContents === 'function';
       if (isLikedTracks && !hasInternal) {
-        throw error('L’API des Titres likés est indisponible. Recharge Spotify puis réessaie.');
+        throw error('The Liked Songs API is unavailable. Reload Spotify and try again.');
       }
       if (!hasInternal && !cosmos?.get) {
-        throw error('L’API des playlists Spicetify est indisponible. Recharge Spotify.');
+        throw error('The Spicetify playlist API is unavailable. Reload Spotify.');
       }
       const tracks = [];
       const seen = new Set();
-      let name = isLikedTracks ? 'Titres likés' : 'Ma playlist';
+      let name = isLikedTracks ? 'Liked Songs' : 'My playlist';
       let skipped = 0;
       let offset = 0;
       let total = null;
@@ -192,7 +192,7 @@
       // Metadata is optional; do not make a playable playlist depend on its name.
       if (!isLikedTracks && internal?.getMetadata) {
         try {
-          const meta = await withTimeout(() => internal.getMetadata(uri), 8000, 'Nom de playlist indisponible.');
+          const meta = await withTimeout(() => internal.getMetadata(uri), 8000, 'Playlist name unavailable.');
           if (typeof meta?.name === 'string' && meta.name) name = meta.name;
         } catch (_) { /* Continue with the generic display name. */ }
         assertCurrent();
@@ -205,19 +205,19 @@
             ? internal.getTracks({ offset, limit })
             : hasInternal ? internal.getContents(uri, { offset, limit })
             : cosmos.get(`https://api.spotify.com/v1/playlists/${id}/tracks?offset=${offset}&limit=100`),
-          15000, isLikedTracks ? 'Spotify met trop de temps à charger les Titres likés. Réessaie.' : 'Spotify met trop de temps à charger cette playlist. Réessaie.');
+          15000, isLikedTracks ? 'Spotify is taking too long to load Liked Songs. Try again.' : 'Spotify is taking too long to load this playlist. Try again.');
         } catch (cause) {
           assertCurrent();
-          if (/trop de temps/.test(cause?.message || '')) throw cause;
-          throw error(isLikedTracks ? 'Impossible de lire les Titres likés. Vérifie leur accès dans Spotify puis réessaie.' : 'Impossible de lire cette playlist. Vérifie son lien et son accès dans Spotify.');
+          if (/taking too long/.test(cause?.message || '')) throw cause;
+          throw error(isLikedTracks ? 'Could not load Liked Songs. Check that you can open them in Spotify, then try again.' : 'Could not load this playlist. Check its link and that you can open it in Spotify.');
         }
         assertCurrent();
-        if (!Array.isArray(page?.items)) throw error(isLikedTracks ? 'Le format des Titres likés n’est pas reconnu par cette version de test.' : 'Le format de cette playlist n’est pas reconnu par cette version de test.');
+        if (!Array.isArray(page?.items)) throw error(isLikedTracks ? 'This beta does not recognize the Liked Songs format.' : 'This beta does not recognize the playlist format.');
         const declaredTotal = Number(page.totalLength ?? page.total);
         if (Number.isFinite(declaredTotal) && declaredTotal >= 0) total = declaredTotal;
         const signature = page.items.map(t => t?.uid || t?.track?.uri || t?.uri || '').join('|');
         if (offset && page.items.length && signature === previousPage) {
-          throw error(isLikedTracks ? 'Spotify n’a pas chargé la suite des Titres likés. Réessaie.' : 'Spotify n’a pas chargé la suite de la playlist. Essaie une playlist plus courte.');
+          throw error(isLikedTracks ? 'Spotify did not load the next page of Liked Songs. Try again.' : 'Spotify did not load the next page of this playlist. Try a shorter playlist.');
         }
         previousPage = signature;
         for (const item of page.items) {
@@ -238,9 +238,9 @@
         if (total === null && consumed < (hasInternal ? limit : 100)) break;
       }
       if (offset >= 10000 && (total === null || offset < total)) {
-        throw error(isLikedTracks ? 'Cette version de test accepte jusqu’à 10 000 Titres likés.' : 'Cette version de test accepte les playlists de 10 000 titres maximum.');
+        throw error(isLikedTracks ? 'This beta supports up to 10,000 Liked Songs.' : 'This beta supports playlists with up to 10,000 tracks.');
       }
-      if (!tracks.length) throw error(isLikedTracks ? 'Tes Titres likés ne contiennent aucun morceau lisible pour le blind test.' : 'Cette playlist ne contient aucun morceau lisible pour le blind test.');
+      if (!tracks.length) throw error(isLikedTracks ? 'Your Liked Songs have no playable tracks for Blind Test.' : 'This playlist has no playable tracks for Blind Test.');
       return { name, tracks, skipped };
     }
 
@@ -254,11 +254,11 @@
       try {
         assertAvailable();
         if (pendingNative?.expired) {
-          throw error('Une commande de lecture Spotify reste bloquée. Redémarre Spotify avant de réessayer.');
+          throw error('A Spotify playback command is stuck. Restart Spotify before trying again.');
         }
         if (!trackUri.test(track?.uri || '') || !Number.isFinite(startMs) || startMs < 0 ||
             !Number.isFinite(durationMs) || durationMs < 1000 || durationMs > 60000) {
-          throw error('Cet extrait ne peut pas être lu. Choisis un autre morceau.');
+          throw error('This excerpt cannot be played. Choose another track.');
         }
       } catch (cause) { return Promise.reject(cause); }
       stop();
@@ -302,7 +302,7 @@
           lastVolumeRequested = value;
           const pending = player.setVolume(value);
           if (pending?.catch) pending.catch(() => {
-            if (isCurrent()) finish(error('Spotify n’a pas accepté le réglage du son. Réessaie.'));
+            if (isCurrent()) finish(error('Spotify did not accept the volume change. Try again.'));
           });
         }
 
@@ -332,7 +332,7 @@
                 const muteExpired = muteRequestPending && !volumeMatches(0) && now - muteRequestedAt >= 5000;
                 if (nativeExpired || muteExpired) {
                   operation.expired = true;
-                  recoveryError = error('Une commande Spotify reste sans confirmation. Le volume initial a été redemandé. Redémarre Spotify et vérifie son volume.');
+                  recoveryError = error('A Spotify command has not been confirmed. Restoring the original volume was requested. Restart Spotify and check its volume.');
                 }
                 // A cancelled native request can start playing before its
                 // promise resolves. Keep it muted and pause observed playback.
@@ -344,11 +344,11 @@
                   restoreRequestAt = now;
                   lastVolumeRequested = originalVolume;
                   const pending = player.setVolume(originalVolume);
-                  if (pending?.catch) pending.catch(() => settle(error('Le volume initial n’a pas pu être rétabli. Vérifie le volume Spotify.')));
+                  if (pending?.catch) pending.catch(() => settle(error('Could not restore the original volume. Check the Spotify volume.')));
                 }
                 if (requested && volumeMatches(originalVolume)) settle(recoveryError);
-                else if (requested && now - restoreRequestAt > 2500) settle(error('Le volume initial n’a pas pu être rétabli. Vérifie le volume Spotify.'));
-              } catch (_) { settle(error('Le volume initial n’a pas pu être rétabli. Vérifie le volume Spotify.')); }
+                else if (requested && now - restoreRequestAt > 2500) settle(error('Could not restore the original volume. Check the Spotify volume.'));
+              } catch (_) { settle(error('Could not restore the original volume. Check the Spotify volume.')); }
             }
             restoreInterval = setInterval(restoreSample, 25);
             restoreSample();
@@ -367,7 +367,7 @@
             // own volume snapshot. Old callbacks never restore a newer lease.
             if (originalVolume !== null) {
               try { restorationTail = restoreVolume(); }
-              catch (_) { restorationTail = Promise.reject(error('Le volume initial n’a pas pu être rétabli. Vérifie le volume Spotify.')); }
+              catch (_) { restorationTail = Promise.reject(error('Could not restore the original volume. Check the Spotify volume.')); }
             }
           }
           if (diagnostics) report(diagnostics.elapsedMs);
@@ -385,7 +385,7 @@
 
         function beginAudible(now, position) {
           if (Number.isFinite(actualDuration) && position + durationMs > actualDuration - 150) {
-            finish(error('L’extrait dépasse la fin du morceau. Relance la manche avec un extrait plus court.'));
+            finish(error('The excerpt extends past the end of the track. Restart the round with a shorter excerpt.'));
             return;
           }
           phase = 'playing';
@@ -424,7 +424,7 @@
             } catch (_) {
               operation.nativePending = false;
               if (pendingNative === operation) pendingNative = null;
-              if (isCurrent()) finish(error('Spotify refuse de lire ce morceau. Essaie un autre titre.'));
+              if (isCurrent()) finish(error('Spotify cannot play this track. Try another track.'));
             }
           });
         }
@@ -434,13 +434,13 @@
           try {
             const now = Date.now();
             if (now - startedAt > durationMs + 30000) {
-              finish(error('Lecture interrompue : Spotify ne progresse plus. Relance l’extrait.'));
+              finish(error('Playback interrupted: Spotify has stopped progressing. Restart the excerpt.'));
               return;
             }
             if (phase === 'preparing') return;
             if (phase === 'muting') {
               if (volumeMatches(0)) queueNativePlay();
-              else if (now - volumeRequestAt > 2000) finish(error('Impossible de couper le son pendant le chargement. Vérifie le volume Spotify puis réessaie.'));
+              else if (now - volumeRequestAt > 2000) finish(error('Could not mute playback while loading. Check the Spotify volume and try again.'));
               return;
             }
             // getProgress() reads origin._state in the installed wrapper. Use
@@ -449,28 +449,28 @@
             const state = player.origin?._state || player.data;
             const item = state?.item;
             const isAd = item?.type === 'ad' || item?.uri?.startsWith('spotify:ad:') || item?.metadata?.is_advertisement === 'true';
-            if (isAd) { finish(error('Une publicité interrompt l’extrait. Attends sa fin puis réessaie.')); return; }
+            if (isAd) { finish(error('An ad interrupted the excerpt. Wait for it to finish, then try again.')); return; }
             if (phase === 'loading') {
-              if (now - startedAt > 15000) finish(error('Le morceau ne démarre pas. Vérifie le lecteur Spotify puis réessaie.'));
+              if (now - startedAt > 15000) finish(error('The track is not starting. Check the Spotify player and try again.'));
               return;
             }
             if (item?.uri !== track.uri) {
               if (phase === 'waiting') {
-                if (now - startedAt > 15000) finish(error('Spotify n’a pas lancé le morceau demandé. Il est peut-être indisponible.'));
+                if (now - startedAt > 15000) finish(error('Spotify did not start the requested track. It may be unavailable.'));
                 return;
               }
-              finish(error('Le morceau a changé pendant l’extrait. Relance la manche.'));
+              finish(error('The track changed during the excerpt. Restart the round.'));
               return;
             }
             if (phase === 'waiting') {
               const ready = typeof player.isPlaying === 'function' ? player.isPlaying() : state?.isPaused === false;
               if (!ready || state?.isBuffering) {
-                if (now - startedAt > 15000) finish(error('Le morceau ne démarre pas. Vérifie le lecteur Spotify puis réessaie.'));
+                if (now - startedAt > 15000) finish(error('The track is not starting. Check the Spotify player and try again.'));
                 return;
               }
               actualDuration = Number(player.getDuration?.() || track.durationMs);
               if (Number.isFinite(actualDuration) && startMs + durationMs > actualDuration - 150) {
-                finish(error('L’extrait dépasse la fin du morceau. Relance la manche avec un extrait plus court.'));
+                finish(error('The excerpt extends past the end of the track. Restart the round with a shorter excerpt.'));
                 return;
               }
               phase = 'seeking';
@@ -487,7 +487,7 @@
             if (!Number.isFinite(position)) return;
             const playing = typeof player.isPlaying === 'function' ? player.isPlaying() : state?.isPaused === false;
             if (phase === 'seeking') {
-              if (now - seekAt > 8000) { finish(error('Spotify n’a pas accepté le début de l’extrait. Réessaie.')); return; }
+              if (now - seekAt > 8000) { finish(error('Spotify did not accept the excerpt start. Try again.')); return; }
               // A state delivered 300 ms after a successful seek can contain
               // raw=target but getProgress()=target+300. Compare a time corridor
               // rather than requiring both positions to equal the seek target.
@@ -524,26 +524,26 @@
             }
             if (phase === 'unmuting') {
               if (volumeMatches(originalVolume) && playing && !state?.isBuffering) beginAudible(now, position);
-              else if (now - volumeRequestAt > 2000) finish(error('Spotify n’a pas rétabli le son de l’extrait. Réessaie.'));
+              else if (now - volumeRequestAt > 2000) finish(error('Spotify did not restore sound for the excerpt. Try again.'));
               return;
             }
             if (!playing || state?.isBuffering) {
               lastSampleAt = now;
               lastPosition = null;
-              if (now - lastAdvanceAt > 10000) finish(error('La lecture est en pause ou en attente. Relance l’extrait.'));
+              if (now - lastAdvanceAt > 10000) finish(error('Playback is paused or buffering. Restart the excerpt.'));
               return;
             }
             if (lastPosition !== null) {
               const advance = position - lastPosition;
               if (advance < -150 || advance > now - lastSampleAt + 200) {
-                finish(error('La position de lecture a changé. Relance l’extrait.'));
+                finish(error('The playback position changed. Restart the excerpt.'));
                 return;
               }
               if (advance > 0) { elapsedMs += advance; lastAdvanceAt = now; }
             }
             lastPosition = position;
             lastSampleAt = now;
-            if (now - lastAdvanceAt > 10000) { finish(error('Spotify ne joue pas cet extrait. Essaie un autre morceau.')); return; }
+            if (now - lastAdvanceAt > 10000) { finish(error('Spotify is not playing this excerpt. Try another track.')); return; }
             if (elapsedMs >= durationMs) {
               // Pause before rendering progress: UI work must not lengthen an
               // excerpt. Overshoot is measured at the pause request, not output.
@@ -551,7 +551,7 @@
               return;
             }
             report(elapsedMs);
-          } catch (_) { finish(error('Le lecteur Spotify a rencontré une erreur. Réessaie l’extrait.')); }
+          } catch (_) { finish(error('The Spotify player encountered an error. Try the excerpt again.')); }
         }
 
         for (const type of events) player.addEventListener?.(type, sample);
@@ -562,15 +562,15 @@
             originalVolume = Number(player.getVolume());
             if (!Number.isFinite(originalVolume) || originalVolume < 0 || originalVolume > 1) {
               originalVolume = null;
-              finish(error('Le volume Spotify est indisponible. Sélectionne cet ordinateur comme appareil de lecture.'));
+              finish(error('Spotify volume is unavailable. Select this computer as the playback device.'));
               return;
             }
             phase = 'muting';
             volumeRequestAt = Date.now();
             requestVolume(0);
             sample();
-          } catch (_) { finish(error('Impossible de couper le son pendant le chargement. Réessaie.')); }
-        }, () => finish(error('Le volume précédent n’a pas pu être rétabli. Vérifie le volume Spotify puis réessaie.')));
+          } catch (_) { finish(error('Could not mute playback while loading. Try again.')); }
+        }, () => finish(error('Could not restore the previous volume. Check the Spotify volume and try again.')));
       });
     }
 

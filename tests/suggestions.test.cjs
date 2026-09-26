@@ -33,7 +33,7 @@ test("matching ignores accents, case and repeated whitespace and prioritizes pre
   assert.deepEqual(core.suggestions(index, "artist", "松任谷"), ["松任谷由実"]);
 });
 
-test("French alphabetical ordering is independent of catalog order within each rank", () => {
+test("English alphabetical ordering is independent of catalog order within each rank", () => {
   const tracks = ["Zèbre nuit", "Écouter nuit", "Eau nuit", "Nuit zinc", "Nuit été", "Nuit alpha"].map(title => ({ title, artists: [] }));
   const expected = ["Nuit alpha", "Nuit été", "Nuit zinc", "Eau nuit", "Écouter nuit", "Zèbre nuit"];
   assert.deepEqual(core.suggestions(core.buildSuggestionIndex(tracks), "title", "nuit"), expected);

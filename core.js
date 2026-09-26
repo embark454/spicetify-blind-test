@@ -22,7 +22,7 @@
       var path = /^\/(?:intl-[a-z]{2}\/)?(playlist|album)\/([A-Za-z0-9]{22})\/?$/.exec(url.pathname);
       if (path) return "spotify:" + path[1] + ":" + path[2];
     } catch (_) { /* All invalid inputs receive the same actionable error. */ }
-    throw new Error("Colle un lien de playlist Spotify, d’album ou une URI Spotify valide.");
+    throw new Error("Paste a valid Spotify playlist or album link, or a Spotify URI.");
   }
 
   function normalize(value) {
@@ -50,7 +50,7 @@
       add(title, track.title);
       if (Array.isArray(track.artists)) track.artists.forEach(function (name) { add(artist, name); });
     });
-    var collator = new Intl.Collator("fr", { sensitivity: "base" });
+    var collator = new Intl.Collator("en", { sensitivity: "base" });
     function alphabetical(left, right) {
       var order = collator.compare(left.value, right.value);
       if (order) return order;

@@ -13,7 +13,7 @@ test("playlist parser accepts official share links and URI", () => {
 
 test("playlist parser rejects non-playlists, deceptive hosts and malformed IDs", () => {
   for (const input of [null, "", "hello", `https://open.spotify.com.evil.example/playlist/${id}`, `https://evil.example/playlist/${id}`, `https://open.spotify.com@evil.example/playlist/${id}`, `https://user@open.spotify.com/playlist/${id}`, `https://open.spotify.com:444/playlist/${id}`, `http://open.spotify.com/playlist/${id}`, `https://open.spotify.com/track/${id}`, "spotify:playlist:a", `https://open.spotify.com/playlist/${id}/extra`]) {
-    assert.throws(() => core.parsePlaylist(input), /playlist Spotify/);
+    assert.throws(() => core.parsePlaylist(input), /Spotify playlist/);
   }
 });
 
