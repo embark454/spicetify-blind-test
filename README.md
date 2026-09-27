@@ -1,4 +1,4 @@
-# Blind Test — 0.3.3
+# Blind Test — 0.3.4
 
 [![Checks](https://github.com/embark454/spicetify-blind-test/actions/workflows/ci.yml/badge.svg)](https://github.com/embark454/spicetify-blind-test/actions/workflows/ci.yml) · [MIT licensed](LICENSE) · Windows beta
 
@@ -8,7 +8,7 @@ Experimental custom app, developed with Spicetify 2.45.1 on Windows. This reposi
 
 The game interface, context menus, and messages are in English. Original song titles, artist names, and playlist names are preserved.
 
-[Download 0.3.3 — Windows beta](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.3) · [Report a bug](https://github.com/embark454/spicetify-blind-test/issues) · [Changelog](CHANGELOG.md)
+[Download 0.3.4 — Windows beta](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.4) · [Report a bug](https://github.com/embark454/spicetify-blind-test/issues) · [Changelog](CHANGELOG.md)
 
 ![Blind Test setup screen with difficulty levels, playlists, albums, and Liked Songs.](assets/preview.png)
 
@@ -18,7 +18,7 @@ The game interface, context menus, and messages are in English. Original song ti
 
 Spicetify must already be installed and working with the Spotify desktop client.
 
-1. Open the [download page](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.3) and download **`blind-test-v0.3.3-windows.zip`** under **Assets**.
+1. Open the [download page](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.4) and download **`blind-test-v0.3.4-windows.zip`** under **Assets**.
 2. Extract the archive and open its **`blind-test`** folder.
 3. On Windows, open PowerShell in that folder and run:
 
@@ -137,6 +137,8 @@ No dependencies need to be installed. Engine, storage, suggestions, and simulate
 When reporting a bug, include your Spotify and Spicetify versions, reproduction steps, and the error message. Do not include login tokens, personal configuration files, or private playlist contents.
 
 ## Validation and limitations
+
+See [AUDIT.md](AUDIT.md) for the September 2026 audit findings, regression coverage, remaining limitations, and proposed improvements.
 
 The automated suite covers scoring, answer variants, suggestions against a 50,000-track catalog, selection, separate difficulty records, legacy record preservation, storage failure recovery, context menus, source loading, simulated playback, cancellation, and the generated Spicetify module.
 

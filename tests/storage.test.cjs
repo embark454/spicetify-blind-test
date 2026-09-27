@@ -5,6 +5,25 @@ const storage = () => { const data = new Map(); return { getItem: key => data.ge
 const uri = 'spotify:playlist:0000000000000000000001';
 const opts = { playlistUris:[uri], mode:'challenge',passage:'intro',rounds:5,seconds:10 };
 const result = {score:520,maxScore:1000,rounds:5,firstTry:2,artists:4,uris:['spotify:track:0000000000000000000001']};
+
+test('null settings do not discard valid records and recent tracks', () => {
+  const s = storage(), key = recordKey(opts);
+  s.setItem(KEY, JSON.stringify({ settings: null, records: { [key]: result }, recent: result.uris }));
+  const store = create(s);
+  assert.equal(store.getSettings().rounds, 10);
+  assert.equal(store.getRecord(key).score, 520);
+  assert.deepEqual(store.getRecentUris(), result.uris);
+  assert.doesNotThrow(() => store.saveSettings(null));
+});
+
+test('record lookup excludes inherited properties and reserved keys cannot be saved', () => {
+  const store = create(storage());
+  for (const key of ['__proto__', 'constructor', 'prototype']) {
+    assert.equal(store.getRecord(key), null);
+    assert.equal(store.saveResult(key, result).saved, false);
+  }
+  assert.equal(store.saveResult(recordKey(opts), result).isNewRecord, true);
+});
 test('settings survive a new instance and malformed data stays bounded',()=>{ const s=storage();const a=create(s);a.saveSettings({playlists:uri,mode:'training',rounds:20,passage:'random',seconds:5}); assert.equal(create(s).getSettings().rounds,20);s.setItem(KEY,'invalid');assert.equal(create(s).getSettings().rounds,10); });
 test('records isolate rules, actual rounds and training, ignoring playlist order',()=>{assert.notEqual(recordKey(opts),recordKey({...opts,mode:'training'}));assert.notEqual(recordKey(opts),recordKey({...opts,rounds:10}));assert.notEqual(recordKey(opts),recordKey({...opts,passage:'random'})); const second='spotify:playlist:0000000000000000000002';assert.equal(recordKey({...opts,playlistUris:[uri,second]}),recordKey({...opts,playlistUris:[second,uri]})); });
 test('records improve only and assisted runs cannot replace automatic records',()=>{const a=create(storage()),key=recordKey(opts);assert.equal(a.saveResult(key,result).isNewRecord,true);assert.equal(a.saveResult(key,{...result,score:300}).isNewRecord,false);assert.equal(a.saveResult(key,{...result,score:900,assisted:true}).isNewRecord,false);assert.equal(a.getRecord(key).score,520);assert.equal(a.saveResult(key,{...result,score:1001}).saved,false);assert.equal(a.getRecentUris().length,1);});

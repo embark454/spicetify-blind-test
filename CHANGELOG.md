@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.4
+
+- Fixed source pagination when Spotify returns null or invalid totals, and skipped malformed artist metadata safely.
+- Preserved valid records when saved settings are malformed; hardened record lookups and reserved keys.
+- Validated all runtime files before installation to prevent partial updates from incomplete packages.
+- Handled asynchronous seek rejection through playback cleanup and volume restoration.
+- Added eight regression tests and documented the audit scope, findings, limitations, and proposed improvements in `AUDIT.md`.
+
 ## 0.3.3
 
 - Accelerated smart draws for large catalogs by reusing normalized artist names and stopping candidate searches as soon as the best possible rank is found. Fresh-track priority, artist rotation, and shuffled tie order are preserved.

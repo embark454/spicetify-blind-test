@@ -39,7 +39,7 @@
     if (!t || !trackUri.test(t.uri || '') || t.isLocal || t.is_local ||
         t.isPlayable === false || t.is_playable === false || t.playability?.playable === false ||
         (t.type && t.type !== 'track')) return null;
-    const artists = (Array.isArray(t.artists) ? t.artists : t.artists?.items || [])
+    const artists = (Array.isArray(t.artists) ? t.artists : Array.isArray(t.artists?.items) ? t.artists.items : [])
       .map(a => typeof a === 'string' ? a : a?.name || a?.profile?.name)
       .filter(a => typeof a === 'string' && a.trim());
     const durationMs = Number(t.duration?.milliseconds ?? t.duration?.totalMilliseconds ?? t.duration_ms ?? t.durationMs);
@@ -135,8 +135,8 @@
         if (!Array.isArray(page?.items)) throw error('This beta does not recognize the album format.');
         if (typeof album.name === 'string' && album.name.trim()) name = album.name;
         if (Array.isArray(album.coverArt?.sources)) coverSources = album.coverArt.sources;
-        const declaredTotal = Number(page.totalCount);
-        if (Number.isFinite(declaredTotal) && declaredTotal >= 0) total = declaredTotal;
+        const declaredTotal = page.totalCount;
+        if (typeof declaredTotal === 'number' && Number.isSafeInteger(declaredTotal) && declaredTotal >= 0) total = declaredTotal;
         const signature = page.items.map(row => row?.uid || row?.track?.uri || '').join('|');
         if (offset && page.items.length && signature === previousPage) {
           throw error('Spotify did not load the next page of this album. Try again.');
@@ -213,8 +213,8 @@
         }
         assertCurrent();
         if (!Array.isArray(page?.items)) throw error(isLikedTracks ? 'This beta does not recognize the Liked Songs format.' : 'This beta does not recognize the playlist format.');
-        const declaredTotal = Number(page.totalLength ?? page.total);
-        if (Number.isFinite(declaredTotal) && declaredTotal >= 0) total = declaredTotal;
+        const declaredTotal = page.totalLength ?? page.total;
+        if (typeof declaredTotal === 'number' && Number.isSafeInteger(declaredTotal) && declaredTotal >= 0) total = declaredTotal;
         const signature = page.items.map(t => t?.uid || t?.track?.uri || t?.uri || '').join('|');
         if (offset && page.items.length && signature === previousPage) {
           throw error(isLikedTracks ? 'Spotify did not load the next page of Liked Songs. Try again.' : 'Spotify did not load the next page of this playlist. Try a shorter playlist.');
@@ -485,7 +485,10 @@
               seekRawPosition = Number(state?.positionAsOfTimestamp);
               // Spicetify interprets non-integer values in [0,1] as fractions.
               // Always send an integer millisecond target, including 0 and 1.
-              player.seek(seekTargetMs);
+              const seekRequest = player.seek(seekTargetMs);
+              if (seekRequest?.catch) seekRequest.catch(() => {
+                if (isCurrent()) finish(error('Spotify did not accept the excerpt start. Try again.'));
+              });
               return;
             }
             const position = Number(player.getProgress());

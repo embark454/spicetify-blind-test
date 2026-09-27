@@ -28,6 +28,9 @@ blind-test/
   README.md
   LICENSE
   CHANGELOG.md
+  AUDIT.md
+  CONTRIBUTING.md
+  RELEASING.md
   assets/
     preview.png
 ```

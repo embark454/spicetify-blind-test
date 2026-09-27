@@ -9,6 +9,7 @@
   const trackPattern = /^spotify:track:[A-Za-z0-9]{22}$/;
   const defaults = { playlists: '', rounds: 10, mode: 'challenge', passage: 'intro', seconds: 10, difficulty: 'hard' };
   function settings(value = {}) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) value = {};
     return { playlists: typeof value.playlists === 'string' ? value.playlists.slice(0, 4000) : '',
       rounds: [5,10,15,20].includes(value.rounds) ? value.rounds : 10,
       mode: value.mode === 'training' ? 'training' : 'challenge', passage: value.passage === 'random' ? 'random' : 'intro',
@@ -63,10 +64,11 @@
       getSettings: () => ({ ...read().settings }),
       saveSettings: value => write({ ...read(), settings: settings(value) }),
       getRecentUris: () => [...read().recent], recordKey,
-      getRecord: key => { const value = read().records[key]; return value ? { ...value } : null; },
+      getRecord: key => { const records = read().records; return Object.hasOwn(records, key) ? { ...records[key] } : null; },
       saveResult: (key, result) => {
         const data = read();
-        const previous = data.records[key] || null;
+        const previous = Object.hasOwn(data.records, key) ? data.records[key] : null;
+        if (typeof key !== 'string' || key.length >= 2000 || ['__proto__', 'constructor', 'prototype'].includes(key)) return { previous: null, best: null, isNewRecord: false, saved: false };
         if (!validRecord(result)) return { previous, best: previous, isNewRecord: false, saved: false };
         const recent = [...data.recent];
         for (const uri of result.uris || []) if (trackPattern.test(uri)) { const i = recent.indexOf(uri); if (i >= 0) recent.splice(i, 1); recent.push(uri); }

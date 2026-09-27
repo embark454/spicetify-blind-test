@@ -1,4 +1,4 @@
-/* Blind Test 0.3.3 — uses Spotify's React, no external runtime or account. */
+/* Blind Test 0.3.4 — uses Spotify's React, no external runtime or account. */
 function BlindTestAnswerInput({ fieldName, label, placeholder, value, onChange, disabled, difficulty, index }) {
   const R = Spicetify.React, h = R.createElement;
   const [focused, setFocused] = R.useState(false);
@@ -215,7 +215,7 @@ function BlindTestApp() {
 
   const btn=(label,onClick,className='bt-button bt-secondary',extra={})=>h('button',{type:'button',className,onClick,...extra},label);
   const field=(label,element)=>h('label',{className:'bt-field'},h('span',null,label),element);
-  const header=h('header',{className:'bt-header'},h('div',{className:'bt-brand'},h('span',{className:'bt-logo','aria-hidden':true},'◉'),'BLIND TEST'),h('span',{className:'bt-badge'},preview?'PREVIEW · SIMULATED AUDIO':'BETA · 0.3.3'));
+  const header=h('header',{className:'bt-header'},h('div',{className:'bt-brand'},h('span',{className:'bt-logo','aria-hidden':true},'◉'),'BLIND TEST'),h('span',{className:'bt-badge'},preview?'PREVIEW · SIMULATED AUDIO':'BETA · 0.3.4'));
   const errorView=error?h('div',{className:'bt-error',role:'alert'},error):null;
   const stageProps={ref:stageRef,className:'bt-root bt-stage',lang:'en','aria-label':'Blind Test game',onCancel:event=>{event.preventDefault();leave();}};
 

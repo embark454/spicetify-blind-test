@@ -10,6 +10,41 @@ const playlist = 'spotify:playlist:CCCCCCCCCCCCCCCCCCCCCC';
 const albumUri = 'spotify:album:EEEEEEEEEEEEEEEEEEEEEE';
 const track = { uri, title: 'Un morceau', artists: ['Artiste'], durationMs: 180000 };
 
+test('an asynchronous seek rejection restores volume and cleans up the excerpt', async () => {
+  const e = setup();
+  e.player.seek = () => Promise.reject(new Error('Native seek rejected'));
+  const rejected = assert.rejects(e.adapter.playExcerpt(track, { startMs: 30000, durationMs: 1000 }), /did not accept/);
+  await flush(); await e.advance(100); await rejected;
+  assert.equal(e.player.getVolume(), 0.42);
+  assert.equal(e.state.isPaused, true);
+  assert.equal(e.timers.size, 0);
+  assert.ok([...e.listeners.values()].every(listeners => listeners.size === 0));
+});
+
+for (const kind of ['playlist', 'album', 'liked']) {
+  test(`${kind} pagination treats null totals as unknown rather than zero`, async () => {
+    const e = setup(), offsets = [], size = kind === 'album' ? 100 : 200;
+    const page = offset => {
+      offsets.push(offset);
+      return offset === 0 ? Array.from({ length: size }, (_, i) => ({ ...track, uri: `spotify:track:${String(i).padStart(22, '0')}` })) : [{ ...track, uri: other }];
+    };
+    if (kind === 'album') e.sp.GraphQL = { Definitions: { queryAlbumTracks: {} }, Request: async (_, { offset }) => ({ data: { albumUnion: { tracksV2: { totalCount: null, items: page(offset).map(track => ({ track })) } } } }) };
+    else if (kind === 'liked') e.sp.Platform.LibraryAPI = { getTracks: async ({ offset }) => ({ totalLength: null, items: page(offset) }) };
+    else e.sp.Platform.PlaylistAPI.getContents = async (_, { offset }) => ({ total: null, items: page(offset) });
+    const result = await e.adapter.loadPlaylist(kind === 'album' ? albumUri : kind === 'liked' ? 'spotify:collection:tracks' : playlist);
+    assert.equal(result.tracks.length, size + 1);
+    assert.deepEqual(offsets, [0, size]);
+  });
+}
+
+test('malformed artist metadata is skipped without discarding valid playlist tracks', async () => {
+  const e = setup();
+  e.sp.Platform.PlaylistAPI.getContents = async () => ({ totalLength: 2, items: [{ ...track, artists: { items: {} } }, { ...track, uri: other }] });
+  const result = await e.adapter.loadPlaylist(playlist);
+  assert.equal(result.skipped, 1);
+  assert.equal(result.tracks[0].uri, other);
+});
+
 for (const liked of [false, true]) {
   test(`${liked ? 'Liked Songs' : 'playlist'} rejects an empty page before the declared end`, async () => {
     const e = setup();
