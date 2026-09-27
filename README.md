@@ -1,5 +1,7 @@
 # Blind Test — 0.3.2
 
+[![Checks](https://github.com/embark454/spicetify-blind-test/actions/workflows/ci.yml/badge.svg)](https://github.com/embark454/spicetify-blind-test/actions/workflows/ci.yml) · [MIT licensed](LICENSE) · Windows beta
+
 A solo music quiz built into Spotify with Spicetify. Pick playlists, albums, or Liked Songs and identify each track and artist from short excerpts.
 
 Experimental custom app, developed with Spicetify 2.45.1 on Windows. This repository contains the game and its tests. It is not an official Spotify application.
@@ -9,6 +11,40 @@ The game interface, context menus, and messages are in English. Original song ti
 [Download 0.3.2 — Windows beta](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.2) · [Report a bug](https://github.com/embark454/spicetify-blind-test/issues) · [Changelog](CHANGELOG.md)
 
 ![Blind Test setup screen with difficulty levels, playlists, albums, and Liked Songs.](assets/preview.png)
+
+**Jump to:** [Install or update](#install-or-update) · [How to play](#play) · [Development](#development) · [Limitations](#validation-and-limitations)
+
+## Install or update
+
+Spicetify must already be installed and working with the Spotify desktop client.
+
+1. Open the [download page](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.2) and download **`blind-test-v0.3.2-windows.zip`** under **Assets**.
+2. Extract the archive and open its **`blind-test`** folder.
+3. On Windows, open PowerShell in that folder and run:
+
+```powershell
+.\INSTALLER.ps1
+```
+
+The installer copies the eight application files into `%APPDATA%\spicetify\CustomApps\blind-test`, adds the game alongside existing custom apps, and runs `spicetify apply`, which may restart Spotify. Node.js is not required to play.
+
+If PowerShell prevents the script from running, install manually: copy the **`blind-test`** folder into `%APPDATA%\spicetify\CustomApps\`, then run:
+
+```powershell
+spicetify config custom_apps blind-test
+spicetify apply
+```
+
+Developers can also clone this repository or use **Code → Download ZIP**. The installer is at the repository root.
+
+The installer saves a dated backup of your configuration and any previous version in `sauvegardes`. These personal backups are excluded from Git and release archives.
+
+To disable only this custom app:
+
+```powershell
+spicetify config custom_apps blind-test-
+spicetify apply
+```
 
 ## Play
 
@@ -66,39 +102,9 @@ The player's volume is temporarily set to zero while an excerpt is prepared and 
 
 Local files, podcasts, and unusable tracks are excluded. Each source supports up to 10,000 tracks, including Liked Songs. Challenge requires tracks lasting at least 17 seconds. If too few tracks are available, the game reduces the number of rounds.
 
-## Install or update
-
-Spicetify must already be installed and working with the Spotify desktop client.
-
-1. Open the [download page](https://github.com/embark454/spicetify-blind-test/releases/tag/v0.3.2) and download **`blind-test-v0.3.2-windows.zip`** under **Assets**.
-2. Extract the archive and open its **`blind-test`** folder.
-3. On Windows, open PowerShell in that folder and run:
-
-```powershell
-.\INSTALLER.ps1
-```
-
-The installer copies the eight application files into `%APPDATA%\spicetify\CustomApps\blind-test`, adds the game alongside existing custom apps, and runs `spicetify apply`, which may restart Spotify. Node.js is not required to play.
-
-If PowerShell prevents the script from running, install manually: copy the **`blind-test`** folder into `%APPDATA%\spicetify\CustomApps\`, then run:
-
-```powershell
-spicetify config custom_apps blind-test
-spicetify apply
-```
-
-Developers can also clone this repository or use **Code → Download ZIP**. The installer is at the repository root.
-
-The installer saves a dated backup of your configuration and any previous version in `sauvegardes`. These personal backups are excluded from Git and release archives.
-
-To disable only this custom app:
-
-```powershell
-spicetify config custom_apps blind-test-
-spicetify apply
-```
-
 ## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and [RELEASING.md](RELEASING.md) for packaging, publication, and Marketplace troubleshooting.
 
 ### Marketplace distribution
 

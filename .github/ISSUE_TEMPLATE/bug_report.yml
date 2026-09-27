@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a problem with installation, playback, or the game.
+body:
+  - type: markdown
+    attributes:
+      value: Please write in English. Never include tokens, personal configuration files, backups, or private playlist contents. Crop screenshots to hide personal information.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions and operating system
+      description: Include Blind Test, Spotify, Spicetify, and your operating system.
+      placeholder: Blind Test 0.3.2 / Spotify ... / Spicetify ... / Windows ...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the game mode, difficulty, excerpt position, and source type (album, playlist, or Liked Songs).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and error message
+      description: For audio problems, mention whether playback is on this computer or another Spotify Connect device.
+    validations:
+      required: true

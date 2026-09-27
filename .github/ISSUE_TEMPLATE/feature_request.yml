@@ -1,0 +1,17 @@
+name: Feature request
+description: Suggest an improvement to Blind Test.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to improve?
+      description: Write in English and describe the situation where this would help.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Suggested behavior
+      description: Explain how you would use the feature during a game.
+    validations:
+      required: true
