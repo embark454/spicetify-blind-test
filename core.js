@@ -211,8 +211,17 @@
   function makeSmartDeck(tracks, rounds, options) {
     options = options || {};
     var random = typeof options.random === "function" ? options.random : Math.random;
-    var remaining = shuffle(validTracks(tracks), random);
     var recent = new Set(Array.isArray(options.recentUris) ? options.recentUris : []);
+    var normalizedArtists = new Map();
+    // Normalize each artist once per draw, rather than once per candidate and
+    // round. Keep the shuffled order so equal ranks retain the same tie break.
+    var remaining = shuffle(validTracks(tracks), random).map(function (track) {
+      var artists = track.artists.map(function (artist) {
+        if (!normalizedArtists.has(artist)) normalizedArtists.set(artist, normalize(artist));
+        return normalizedArtists.get(artist);
+      }).filter(Boolean);
+      return { track: track, artists: artists, recent: recent.has(track.uri) ? 1 : 0 };
+    });
     var artistCounts = new Map();
     var lastArtists = new Set();
     var deck = [];
@@ -220,21 +229,24 @@
     while (deck.length < count) {
       var bestIndex = 0;
       var bestRank = null;
-      remaining.forEach(function (track, index) {
-        var artists = track.artists.map(normalize).filter(Boolean);
+      for (var index = 0; index < remaining.length; index++) {
+        var candidate = remaining[index];
+        var artists = candidate.artists;
         var repetitions = artists.reduce(function (sum, artist) { return sum + (artistCounts.get(artist) || 0); }, 0);
         var adjacent = artists.some(function (artist) { return lastArtists.has(artist); });
         // Fresh tracks first; then unseen artists; avoid adjacent repeats when tied.
-        var rank = [recent.has(track.uri) ? 1 : 0, repetitions, adjacent ? 1 : 0];
+        var rank = [candidate.recent, repetitions, adjacent ? 1 : 0];
         if (bestRank === null || rank[0] < bestRank[0]
           || rank[0] === bestRank[0] && (rank[1] < bestRank[1] || rank[1] === bestRank[1] && rank[2] < bestRank[2])) {
           bestRank = rank;
           bestIndex = index;
         }
-      });
+        // No later candidate can beat a fresh track with unused artists.
+        if (rank[0] === 0 && rank[1] === 0 && rank[2] === 0) break;
+      }
       var selected = remaining.splice(bestIndex, 1)[0];
-      deck.push(selected);
-      lastArtists = new Set(selected.artists.map(normalize).filter(Boolean));
+      deck.push(selected.track);
+      lastArtists = new Set(selected.artists);
       lastArtists.forEach(function (artist) { artistCounts.set(artist, (artistCounts.get(artist) || 0) + 1); });
     }
     return deck;

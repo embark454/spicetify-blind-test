@@ -234,6 +234,11 @@
           ? rawCount : page.items.length;
         if (isLikedTracks) skipped += consumed - page.items.length;
         offset += consumed;
+        if (!consumed && total !== null && offset < total) {
+          throw error(isLikedTracks
+            ? 'Spotify returned an incomplete Liked Songs selection. Try again.'
+            : 'Spotify returned an incomplete playlist. Try again.');
+        }
         if (!consumed || (total !== null && offset >= total)) break;
         if (total === null && consumed < (hasInternal ? limit : 100)) break;
       }

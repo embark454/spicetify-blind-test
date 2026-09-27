@@ -107,7 +107,11 @@ function BlindTestApp() {
     stop();
     const starts = deck.map(t => preservedStarts?.get(t.uri) ?? core.chooseStart(t, maxSeconds, rules.passage));
     const difficulty = rules.difficulty === 'easy' ? 'easy' : 'hard';
-    const suggestionIndex = difficulty === 'easy' ? core.buildSuggestionIndex((replay ? catalogRef.current : catalog)?.tracks || catalog.tracks) : null;
+    const sourceCatalog = replay ? catalogRef.current || catalog : catalog;
+    // A loaded catalog stays unchanged across redraws and missed-track practice.
+    // Build its full index lazily and release it when the catalog is replaced.
+    if (difficulty === 'easy' && !sourceCatalog.suggestionIndex) sourceCatalog.suggestionIndex = core.buildSuggestionIndex(sourceCatalog.tracks);
+    const suggestionIndex = difficulty === 'easy' ? sourceCatalog.suggestionIndex : null;
     const next = { id:`${Date.now()}-${Math.random()}`,deck,starts,passageStarts:starts.map(start=>[start]),index:0,round:core.createRound(),history:[],mode:rules.mode,passage:rules.passage,seconds:rules.seconds,difficulty,suggestionIndex,
       playlistUris:catalog.uris,source:catalog.name,replay,recordKey:store.recordKey({playlistUris:catalog.uris,...rules,rounds:deck.length}) };
     commit(next); clearRoundUI(); setRecord(null); setScreen('game');

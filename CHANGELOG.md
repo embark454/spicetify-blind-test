@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Accelerated smart draws for large catalogs by reusing normalized artist names and stopping candidate searches as soon as the best possible rank is found. Fresh-track priority, artist rotation, and shuffled tie order are preserved.
+- Reused the full catalog's suggestion index across new draws and missed-track practice. Reloading sources refreshes the index, and Hard mode still skips indexing.
+- Rejected prematurely empty playlist and Liked Songs pages instead of silently starting a game from an incomplete selection.
+- Added regression coverage for draw ordering, suggestion reuse and refresh, and incomplete source pagination.
+
 ## 0.3.2
 
 - Translated all game screens, rules, results, context menus, accessibility labels, and error messages into English.

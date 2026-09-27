@@ -49,6 +49,9 @@ function setup(rules = {}) {
   };
   vm.createContext(sandbox);
   for (const file of ['core.js', 'storage.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), sandbox);
+  let indexBuilds = 0;
+  const buildIndex = sandbox.BTCore.buildSuggestionIndex;
+  sandbox.BTCore.buildSuggestionIndex = tracks => { indexBuilds++; return buildIndex(tracks); };
   sandbox.BTStore.create().saveSettings({ playlists: 'spotify:album:0000000000000000000001', mode: 'challenge', passage: 'random', rounds: 5, ...rules });
   const text = element => typeof element === 'string' || typeof element === 'number' ? String(element) : (element?.children || []).map(text).join('');
   const all = (element = tree) => element && typeof element === 'object' ? [element, ...element.children.flatMap(child => all(child))] : [];
@@ -66,7 +69,27 @@ function setup(rules = {}) {
     assert.equal(button('Submit answer').props.disabled, false);
     find(node => node.type === 'form').props.onSubmit({ preventDefault() {} }); render();
   }
-  return { calls, start, click, button, answer, submit, text: () => text(tree), failNext: () => { failNext = true; } };
+  return { calls, start, click, button, answer, submit, indexBuilds: () => indexBuilds, text: () => text(tree), failNext: () => { failNext = true; } };
+}
+
+for (const difficulty of ['easy', 'hard']) {
+  test(`${difficulty} suggestion indexing is reused across draws and practice and refreshed on reload`, async () => {
+    const app = setup({ difficulty });
+    await app.start();
+    assert.equal(app.indexBuilds(), difficulty === 'easy' ? 1 : 0);
+    await app.click('Reveal answer');
+    await app.click('See my score →');
+    await app.click('New selection  →');
+    await app.click('Reveal answer');
+    await app.click('See my score →');
+    await app.click('Practice missed tracks (1)');
+    assert.equal(app.indexBuilds(), difficulty === 'easy' ? 1 : 0);
+    await app.click('Reveal answer');
+    await app.click('See my score →');
+    await app.click('Change rules');
+    await app.start();
+    assert.equal(app.indexBuilds(), difficulty === 'easy' ? 2 : 0);
+  });
 }
 
 test('random challenge moves to new passages on hints and wrong answers, retaining earned points', async () => {

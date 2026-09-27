@@ -10,6 +10,18 @@ const playlist = 'spotify:playlist:CCCCCCCCCCCCCCCCCCCCCC';
 const albumUri = 'spotify:album:EEEEEEEEEEEEEEEEEEEEEE';
 const track = { uri, title: 'Un morceau', artists: ['Artiste'], durationMs: 180000 };
 
+for (const liked of [false, true]) {
+  test(`${liked ? 'Liked Songs' : 'playlist'} rejects an empty page before the declared end`, async () => {
+    const e = setup();
+    const page = async ({ offset }) => offset === 0
+      ? { items: [track], limit: 1, totalLength: 3 }
+      : { items: [], limit: 0, totalLength: 3 };
+    if (liked) e.sp.Platform.LibraryAPI = { getTracks: page };
+    else e.sp.Platform.PlaylistAPI = { getContents: (_, options) => page(options) };
+    await assert.rejects(e.adapter.loadPlaylist(liked ? 'spotify:collection:tracks' : playlist), /incomplete/);
+  });
+}
+
 async function flush() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
 function setup() {
   let now = 0, nextTimer = 1;

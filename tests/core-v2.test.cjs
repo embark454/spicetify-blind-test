@@ -7,6 +7,20 @@ const track = (n, artist = "Same Artist") => ({ uri: `spotify:track:${n}`, title
 const challenge = { mode: "challenge" };
 const training = { mode: "training" };
 
+test('smart draw preserves freshness, normalized artist rotation, and shuffled tie order', () => {
+  const catalog = [track(1, 'Beyoncé'), track(2, 'Beyonce'), track(3, 'BEYONCÉ'), track(4, 'Other'), track(5, 'New')];
+  const before = JSON.stringify(catalog);
+  const deck = core.makeSmartDeck(catalog, 5, {
+    recentUris: [catalog[0].uri, catalog[4].uri],
+    random: () => 0.999999
+  });
+  assert.deepEqual(deck.map(t => t.uri), [2, 4, 3, 5, 1].map(n => `spotify:track:${n}`));
+  assert.equal(JSON.stringify(catalog), before);
+  const tied = [track(6, 'A'), track(7, 'B'), track(8, 'C')];
+  assert.deepEqual(core.makeSmartDeck(tied, 3, { random: () => 0 }).map(t => t.uri),
+    core.makeDeck(tied, 3, () => 0).map(t => t.uri));
+});
+
 function frozen(round) {
   Object.freeze(round.title);
   Object.freeze(round.artist);
