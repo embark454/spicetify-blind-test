@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.3
 
 - Accelerated smart draws for large catalogs by reusing normalized artist names and stopping candidate searches as soon as the best possible rank is found. Fresh-track priority, artist rotation, and shuffled tie order are preserved.
 - Reused the full catalog's suggestion index across new draws and missed-track practice. Reloading sources refreshes the index, and Hard mode still skips indexing.
